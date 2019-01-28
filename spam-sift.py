@@ -181,7 +181,7 @@ for thread_id in threads:
     #pdb.set_trace()
 
 
-tooMany = 50
+tooMany = 40
 tooFewPref = 25
 tooFewOk = 15
 tooFewMin = 5
