@@ -180,49 +180,35 @@ for thread_id in threads:
     wordList.append(GetText(thread_id['snippet']))
     #pdb.set_trace()
 
-
+tooFew = 5
 tooMany = 40
-tooFewPref = 25
-tooFewOk = 15
-tooFewMin = 5
+
+# prime the loop
+tupSize=5
 hitCount = 0
-tupSize=8
-tupSizeFirstHit=0
+print("Target: "+str(tooFew))
+
+# track it all
+wordCount = Counter()
 
 # Test multi-word combos in decreasing length until:
 # Happy: there's a common enough result
 # Unhappy: we're going word by word
-while hitCount <= tooFewPref and tupSize > 1:
+while hitCount <= tooFew and tupSize > 1:
     tupSize-=1
     tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-    wordCount = Counter(tuples)
+    wordCount.update(tuples)
     hitCount = wordCount.most_common(1)[0][1]
-    # set a flag for a fallback tuple size
-    if hitCount > tooFewOk and tupSizeFirstHit == 0:
-        tupSizeFirstHit = tupSize
-    #pdb.set_trace()
+    print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(tooFew)+" \""+wordCount.most_common(1)[0][0]+"\"")
 
 # Find a tuple in the Goldilocks zone
 #pdb.set_trace()
-for k in wordCount:
-    if tooFewPref < wordCount[k] < tooMany:
-        if tooFewPref < countMessagesWithTuple(k, service, 'me') < tooMany:
-            showNTell(k)
-
-# Use larger tuple if one was found earlier
-if tupSizeFirstHit > 0:
-    tuples = make_tuples_from_list_of_lists(tupSizeFirstHit, wordList)
-    wordCount = Counter(tuples)
-    for tooFew in (tooFewPref, tooFewOk):
-        for k in wordCount:
-            if tooFew < wordCount[k] < tooMany:
-                if tooFew < countMessagesWithTuple(k, service, 'me') < tooMany:
-                    showNTell(k)
-    
-
-# We didn't find any Goldilocks tuples, so find one that might be "good enough"
-if wordCount.most_common(1)[0][1] > tooFewMin:
-    showNTell(wordCount.most_common(1)[0][0])
+if wordCount.most_common(1)[0][1] > tooFew:
+    for k in wordCount:
+        if tooFew < wordCount[k] < tooMany:
+            if tooFew < countMessagesWithTuple(k, service, 'me') < tooMany:
+                print("Low: "+str(tooFew)+", High: "+str(tooMany))
+                showNTell(k)
 
 # Just load all messages
 showNTell(None)
