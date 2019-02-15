@@ -15,17 +15,20 @@
 
 # [START gmail_quickstart]
 """
-Shows basic usage of the Gmail API.
+Use Gmail API to pull snippets of all spam threads
+then make markhov chains from all messages
+and use most frequent chains to view subset of spam
 
-Lists the user's Gmail labels.
+Multiple decisions of fewer related spam messages is easier than a single decision of all messages
 """
+
 from __future__ import print_function
 from apiclient.discovery import build
 from httplib2 import Http
 from oauth2client import file, client, tools
 
 import sys
-import pdb
+#import pdb
 import base64
 import email
 from apiclient import errors
@@ -35,6 +38,9 @@ from collections import Counter
 
 from HTMLParser import HTMLParser
 
+# tweakable variables
+tooFew = 5
+tooMany = 40
 
 class MLStripper(HTMLParser):
     def __init__(self):
@@ -67,10 +73,6 @@ def ListThreadsWithLabels(service, user_id, label_ids=[]):
                                                  pageToken=page_token).execute()
       threads.extend(response['threads'])
 
-    if response['resultSizeEstimate'] == 0:
-        print("No messages found")
-        exit(0)
-
     return threads
   except errors.HttpError, error:
     print('An error occurred: %s' % error)
@@ -93,7 +95,6 @@ def make_tuples_from_list_of_lists(size, corpus):
     retList = []
     badList = [u'http', u'html', u'www', u'com', u's', u't', u'said']
     if size == 1:
-        #pdb.set_trace()
         try:
             from nltk.corpus import stopwords
             stop_words = list(stopwords.words('english'))
@@ -113,17 +114,22 @@ def make_tuples_from_list_of_lists(size, corpus):
             stop_words.extend(badList)
 
         for thisList in corpus:
-            retList.extend(w for w in thisList if w not in stop_words) 
+            # create a set per message to get unique words for that message
+            # then add each set to list so Counter will count messages
+            retList.extend(set(w for w in thisList if w not in stop_words))
     else:
         for thisList in corpus:
+            # create a set per message to get unique tuples for that message
+            thisTupList = set()
+            # make a list of all tuples (markhov chains)
             for i in range(len(thisList)-(size-1)):
-                retList.append('+'.join(thisList[i + x] for x in range(size) ))
-            #pdb.set_trace()
+                thisTupList.add('+'.join(thisList[i + x] for x in range(size) ))
+            # add per-message set of chains to the return list
+            retList.extend(list(thisTupList))
     return retList
 
     
 def showNTell(mChain):
-    #pdb.set_trace()
     import webbrowser
     if mChain is not None:
         keyList = "+\"" + str(mChain) + "\""
@@ -150,7 +156,6 @@ def countMessagesWithTuple(mChain, service, user_id):
                                              pageToken=page_token).execute()
           messages.extend(response['messages'])
 
-        #pdb.set_trace()
         print(str(len(messages))+": \""+mChain+"\"")
         return len(messages)
       except errors.HttpError, error:
@@ -170,45 +175,51 @@ service = build('gmail', 'v1', http=creds.authorize(Http()))
 
 print("Retrieving messages")
 threads = ListThreadsWithLabels(service, 'me', 'SPAM')
-#pdb.set_trace()
 
-# Try snippet list first, it's fast
-wordList = []
-for thread_id in threads:
-    #msgWords = []
-    #wordList.extend(GetText(thread_id['snippet']))
-    wordList.append(GetText(thread_id['snippet']))
-    #pdb.set_trace()
+# optimize: only analyze if there are enough messages
+if len(threads) == 0:
+    print("No messages found")
+    exit(0)
 
-tooFew = 5
-tooMany = 40
+if len(threads) < tooFew:
+    print("Only "+str(len(threads))+" messages")
 
-# prime the loop
-tupSize=5
-hitCount = 0
-print("Target: "+str(tooFew))
+else:
 
-# track it all
-wordCount = Counter()
+    # Try snippet list first, it's fast
+    wordList = []
+    for thread_id in threads:
+        msgWords = list(GetText(thread_id['snippet']))
+        #wordList.extend(msgWords)
+        wordList.append(msgWords)
 
-# Test multi-word combos in decreasing length until:
-# Happy: there's a common enough result
-# Unhappy: we're going word by word
-while hitCount <= tooFew and tupSize > 1:
-    tupSize-=1
-    tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-    wordCount.update(tuples)
-    hitCount = wordCount.most_common(1)[0][1]
-    print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(tooFew)+" \""+wordCount.most_common(1)[0][0]+"\"")
+    tupSize=6
 
-# Find a tuple in the Goldilocks zone
-#pdb.set_trace()
-if wordCount.most_common(1)[0][1] > tooFew:
-    for k in wordCount:
-        if tooFew < wordCount[k] < tooMany:
-            if tooFew < countMessagesWithTuple(k, service, 'me') < tooMany:
-                print("Low: "+str(tooFew)+", High: "+str(tooMany))
-                showNTell(k)
+    # track it all
+    wordCounter = Counter()
+
+    # Test multi-word combos in decreasing length until:
+    # Happy: there's a common enough result
+    # Unhappy: we're going word by word
+    # prime the loop
+    hitCount = 0
+    print("Target: "+str(tooFew))
+    # loop
+    while hitCount < tooFew and tupSize > 1:
+        tupSize-=1
+        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+        wordCounter.update(tuples)
+        tupCounter = Counter(tuples)
+        hitCount = tupCounter.most_common(1)[0][1]
+        print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(tooFew)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+
+    # Find a tuple in the Goldilocks zone
+    if wordCounter.most_common(1)[0][1] >= tooFew:
+        for k, v in wordCounter.most_common():
+            if tooFew <= v <= tooMany:
+                if tooFew <= countMessagesWithTuple(k, service, 'me') <= tooMany:
+                    print("Low: "+str(tooFew)+", High: "+str(tooMany))
+                    showNTell(k)
 
 # Just load all messages
 showNTell(None)
