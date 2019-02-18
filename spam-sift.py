@@ -131,13 +131,14 @@ def make_tuples_from_list_of_lists(size, corpus):
     
 def showNTell(mChain):
     import webbrowser
+    mUrl = "https://mail.google.com/mail/u/0/"
+
     if mChain is not None:
-        keyList = "+\"" + str(mChain) + "\""
+        mUrl += "#search/in%3Aspam+\"" + str(mChain) + "\""
     else:
-        keyList = ''
+        mUrl += "#spam"
     
-    webbrowser.open(url="https://mail.google.com/mail/u/0/#search/in%3Aspam" + str(keyList),
-        autoraise=True)
+    webbrowser.open(url = mUrl, autoraise=True)
     exit(0)
 
 def countMessagesWithTuple(mChain, service, user_id):
