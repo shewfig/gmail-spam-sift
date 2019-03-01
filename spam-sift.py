@@ -78,6 +78,15 @@ def ListThreadsWithLabels(service, user_id, label_ids=[]):
     print('An error occurred: %s' % error)
 
 
+def getUserAddress(service, user_id):
+    try:
+        response = service.users().getProfile(userId=user_id).execute()
+        #pdb.set_trace()
+        return response['emailAddress']
+
+    except errors.HttpError, error:
+        print('An error occurred: %s' % error)
+
 
 def unwrap(payload):
     text = base64.urlsafe_b64decode(payload.encode('ascii'))
@@ -173,6 +182,9 @@ if not creds or creds.invalid:
     creds = tools.run_flow(flow, store)
 service = build('gmail', 'v1', http=creds.authorize(Http()))
 
+print("Getting user info")
+useraddr = str(getUserAddress(service, 'me'))
+print("User address = "+useraddr)
 
 print("Retrieving messages")
 threads = ListThreadsWithLabels(service, 'me', 'SPAM')
