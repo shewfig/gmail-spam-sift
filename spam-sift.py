@@ -41,6 +41,7 @@ from HTMLParser import HTMLParser
 # tweakable variables
 tooFew = 5
 tooMany = 40
+justRight = 20
 
 class MLStripper(HTMLParser):
     def __init__(self):
@@ -102,12 +103,12 @@ def GetText(payload):
 
 def make_tuples_from_list_of_lists(size, corpus):
     retList = []
-    badList = [u'http', u'html', u'www', u'com', u's', u't', u'said']
-    if size == 1:
+    if size < 2:
+        badList = [u'http', u'html', u'www', u'com', u's', u't', u'gmail']
         try:
             from nltk.corpus import stopwords
             stop_words = list(stopwords.words('english'))
-            stop_words.extend(badList)
+            badList.extend(stop_words)
         except LookupError:
             import nltk
             from tempfile import mkdtemp
@@ -120,12 +121,19 @@ def make_tuples_from_list_of_lists(size, corpus):
             # some basic sanity, but /shrug
             if len(nltkTmpDir) > 4 and not nltkTmpDir.endswith('/'):
                 rmtree(nltkTmpDir)
-            stop_words.extend(badList)
+            badList.extend(stop_words)
 
-        for thisList in corpus:
-            # create a set per message to get unique words for that message
-            # then add each set to list so Counter will count messages
-            retList.extend(set(w for w in thisList if w not in stop_words))
+        # create a set per message to get unique words for that message
+        # then add each set to list so Counter will count messages
+        if size == 1:
+            for thisList in corpus:
+                retList.extend(set(w for w in thisList if w not in badList))
+
+        # tupsize 0: return all of the common words previously excluded
+        elif size == 0:
+            for thisList in corpus:
+                retList.extend(set(w for w in thisList if w in badList))
+
     else:
         for thisList in corpus:
             # create a set per message to get unique tuples for that message
@@ -199,6 +207,10 @@ if len(threads) < tooFew:
 
 else:
 
+    # improve hit visual efficicency
+    minHit = max(tooFew, tooFew + (abs(justRight - tooFew)//2))
+    maxHit = min(tooMany, tooMany - (abs(tooMany - justRight)//2))
+
     # Try snippet list first, it's fast
     wordList = []
     for thread_id in threads:
@@ -206,7 +218,7 @@ else:
         #wordList.extend(msgWords)
         wordList.append(msgWords)
 
-    tupSize=6
+    tupSize=7
 
     # track it all
     wordCounter = Counter()
@@ -216,23 +228,29 @@ else:
     # Unhappy: we're going word by word
     # prime the loop
     hitCount = 0
-    print("Target: "+str(tooFew))
+    # print("Target: "+str(tooFew))
     # loop
-    while hitCount < tooFew and tupSize > 1:
-        tupSize-=1
-        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-        wordCounter.update(tuples)
-        tupCounter = Counter(tuples)
-        hitCount = tupCounter.most_common(1)[0][1]
-        print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(tooFew)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+    for phase in range(1,-1,-1):
 
-    # Find a tuple in the Goldilocks zone
-    if wordCounter.most_common(1)[0][1] >= tooFew:
-        for k, v in wordCounter.most_common():
-            if tooFew <= v <= tooMany:
-                if tooFew <= countMessagesWithTuple(k, service, 'me') <= tooMany:
-                    print("Low: "+str(tooFew)+", High: "+str(tooMany))
-                    showNTell(k)
+        while hitCount < minHit and tupSize > phase:
+            tupSize-=1
+            tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+            wordCounter.update(tuples)
+            tupCounter = Counter(tuples)
+            hitCount = tupCounter.most_common(1)[0][1]
+            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+
+        print("Most hits: "+str(wordCounter.most_common(1)[0][1]))
+
+        for low, high in zip([minHit, tooFew], [maxHit, tooMany]):
+            # Find a tuple in the Goldilocks zone
+            if wordCounter.most_common(1)[0][1] >= low:
+                print("Low: "+str(low)+", High: "+str(high))
+                for k, v in wordCounter.most_common():
+                    if low <= v <= high:
+                        print("Snippet:\""+str(k)+"\": "+str(v)+". Text:", end='')
+                        if low <= countMessagesWithTuple(k, service, 'me') <= high:
+                            showNTell(k)
 
 # Just load all messages
 showNTell(None)
