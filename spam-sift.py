@@ -28,7 +28,7 @@ from httplib2 import Http
 from oauth2client import file, client, tools
 
 import sys
-#import pdb
+import pdb
 import base64
 import email
 from apiclient import errors
@@ -79,7 +79,30 @@ def ListThreadsWithLabels(service, user_id, label_ids=[]):
     print('An error occurred: %s' % error)
 
 
-def getUserAddress(service, user_id):
+def getThreadSubjects(service, user_id, threads):
+  subWordLoL = []
+  iterNum = 0
+  try:
+    for threadId in threads:
+      iterNum += 1
+      print(str(iterNum)) if iterNum % 10 == 0 else print('.', end='')
+      tdata = service.users().threads().get(userId=user_id, id=threadId['id']).execute()
+      msg = tdata['messages'][0]['payload']
+      for header in msg['headers']:
+          if header['name'] == 'Subject':
+            #print("Found subject: " + header['value'])
+            #subWordLoL.extend(header['value'])
+            subWordLoL.append(GetText(header['value']))
+            #pdb.set_trace()
+            break
+    print(str(iterNum))
+    return subWordLoL
+  except errors.HttpError, error:
+    print('An error occurred: %s' % error)
+
+
+
+def getUserAddress(service, user_id='me'):
     try:
         response = service.users().getProfile(userId=user_id).execute()
         #pdb.set_trace()
@@ -104,7 +127,7 @@ def GetText(payload):
 def make_tuples_from_list_of_lists(size, corpus):
     retList = []
     if size < 2:
-        badList = [u'http', u'html', u'www', u'com', u's', u't', u'gmail']
+        badList = [u'http', u'html', u'www', u'com', u's', u't', u'gmail', u'hi']
         try:
             from nltk.corpus import stopwords
             stop_words = list(stopwords.words('english'))
@@ -158,7 +181,7 @@ def showNTell(mChain):
     webbrowser.open(url = mUrl, autoraise=True)
     exit(0)
 
-def countMessagesWithTuple(mChain, service, user_id):
+def countMessagesWithTuple(mChain, service, user_id='me'):
     if mChain is not None:
       query = "in:spam AND NOT(label:trash) AND " + "+\"" + str(mChain) + "\""
       try:
@@ -201,11 +224,14 @@ threads = ListThreadsWithLabels(service, 'me', 'SPAM')
 if len(threads) == 0:
     print("No messages found")
     exit(0)
-
-if len(threads) < tooFew:
+elif len(threads) < tooFew:
     print("Only "+str(len(threads))+" messages")
 
 else:
+    print("Found "+str(len(threads))+" messages")
+
+    if len(threads) < tooMany:
+        tooMany = len(threads)
 
     # improve hit visual efficicency
     minHit = max(tooFew, tooFew + (abs(justRight - tooFew)//2))
@@ -218,7 +244,7 @@ else:
         #wordList.extend(msgWords)
         wordList.append(msgWords)
 
-    tupSize=7
+    maxTupleSize=7
 
     # track it all
     wordCounter = Counter()
@@ -228,9 +254,11 @@ else:
     # Unhappy: we're going word by word
     # prime the loop
     hitCount = 0
+    subWords = []
+    tupSize = maxTupleSize
     # print("Target: "+str(tooFew))
     # loop
-    for phase in range(1,-1,-1):
+    for phase in range(2,-1,-1):
 
         while hitCount < minHit and tupSize > phase:
             tupSize-=1
@@ -239,6 +267,7 @@ else:
             tupCounter = Counter(tuples)
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+            hitCount += tupSize
 
         print("Most hits: "+str(wordCounter.most_common(1)[0][1]))
 
@@ -250,7 +279,21 @@ else:
                     if low <= v <= high:
                         print("Snippet:\""+str(k)+"\": "+str(v)+". Text:", end='')
                         if low <= countMessagesWithTuple(k, service, 'me') <= high:
+                            print("Searching on: " + k)
                             showNTell(k)
+                            break
+
+        if len(subWords) < 1:
+          # Go and pull all of the subjects too
+          print("Loading subjects for " + str(len(threads)) + " messages.")
+          subjLoL = getThreadSubjects(service, 'me', threads)
+          for msgWords in subjLoL:
+            #subWords.extend(msgWords)
+            subWords.append(msgWords)
+          #pdb.set_trace()
+          wordList.extend(subWords)
+          wordCounter = Counter()
+          tupSize = maxTupleSize
 
 # Just load all messages
 showNTell(None)
