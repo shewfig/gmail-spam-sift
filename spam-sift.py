@@ -120,7 +120,7 @@ def unwrap(payload):
 
 def GetText(payload):
     text = strip_tags(payload)
-    wordlist = re.findall(r'[A-Za-z0-9]+', text.lower())
+    wordlist = re.findall(r'[A-Za-z0-9\']+', text.lower())
     return wordlist
 
 
@@ -197,7 +197,7 @@ def countMessagesWithTuple(mChain, service, user_id='me'):
                                              pageToken=page_token).execute()
           messages.extend(response['messages'])
 
-        print(str(len(messages))+": \""+mChain+"\"")
+        #print(str(len(messages))+": \""+mChain+"\"")
         return len(messages)
       except errors.HttpError, error:
         print('An error occurred: %s')% error
@@ -234,17 +234,19 @@ else:
         tooMany = len(threads)
 
     # improve hit visual efficicency
-    minHit = max(tooFew, tooFew + (abs(justRight - tooFew)//2))
-    maxHit = min(tooMany, tooMany - (abs(tooMany - justRight)//2))
+    justRight = min(justRight, len(threads)//2)
+    minHit = min(max(tooFew, tooFew + (abs(justRight - tooFew)//2)),len(threads))
+    maxHit = min(min(tooMany, tooMany - (abs(tooMany - justRight)//2)),len(threads))
+    print("Low: "+str(minHit)+", High: "+str(maxHit))
 
     # Try snippet list first, it's fast
     wordList = []
     for thread_id in threads:
         msgWords = list(GetText(thread_id['snippet']))
         #wordList.extend(msgWords)
-        wordList.append(msgWords)
+        wordList.append(["can't" if x=="cant" else x for x in msgWords])
 
-    maxTupleSize=7
+    maxTupleSize=10
 
     # track it all
     wordCounter = Counter()
@@ -253,21 +255,21 @@ else:
     # Happy: there's a common enough result
     # Unhappy: we're going word by word
     # prime the loop
-    hitCount = 0
     subWords = []
     tupSize = maxTupleSize
     # print("Target: "+str(tooFew))
     # loop
     for phase in range(2,-1,-1):
+        hitCount = 0
 
-        while hitCount < minHit and tupSize > phase:
+        print("hitCount: " + str(hitCount) + ", phase: " + str(phase) + ", tupSize: " + str(tupSize))
+        while tupSize > phase and hitCount < minHit:
             tupSize-=1
             tuples = make_tuples_from_list_of_lists(tupSize, wordList)
             wordCounter.update(tuples)
             tupCounter = Counter(tuples)
-            hitCount = tupCounter.most_common(1)[0][1]
+            hitCount = countMessagesWithTuple(tupCounter.most_common(1)[0][0], service, 'me')
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            hitCount += tupSize
 
         print("Most hits: "+str(wordCounter.most_common(1)[0][1]))
 
@@ -277,8 +279,10 @@ else:
                 print("Low: "+str(low)+", High: "+str(high))
                 for k, v in wordCounter.most_common():
                     if low <= v <= high:
-                        print("Snippet:\""+str(k)+"\": "+str(v)+". Text:", end='')
-                        if low <= countMessagesWithTuple(k, service, 'me') <= high:
+                        realV = countMessagesWithTuple(k, service, 'me')
+                        delta = k.count('+')
+                        print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(realV))
+                        if (low - delta) <= realV <= (high + (delta * delta)):
                             print("Searching on: " + k)
                             showNTell(k)
                             break
