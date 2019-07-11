@@ -28,7 +28,7 @@ from httplib2 import Http
 from oauth2client import file, client, tools
 
 import sys
-import pdb
+#import pdb
 import base64
 import email
 from apiclient import errors
@@ -174,7 +174,7 @@ def showNTell(mChain):
     mUrl = "https://mail.google.com/mail/u/0/"
 
     if mChain is not None:
-        mUrl += "#search/in%3Aspam+\"" + str(mChain) + "\""
+        mUrl += "#search/in%3Aspam+" + str(mChain)
     else:
         mUrl += "#spam"
     
@@ -183,7 +183,7 @@ def showNTell(mChain):
 
 def countMessagesWithTuple(mChain, service, user_id='me'):
     if mChain is not None:
-      query = "in:spam AND NOT(label:trash) AND " + "+\"" + str(mChain) + "\""
+      query = "in:spam AND NOT(label:trash) AND " + str(mChain) + "\""
       try:
         response = service.users().messages().list(userId=user_id,
                                                    q=query).execute()
@@ -192,10 +192,14 @@ def countMessagesWithTuple(mChain, service, user_id='me'):
           messages.extend(response['messages'])
 
         while 'nextPageToken' in response:
-          page_token = response['nextPageToken']
-          response = service.users().messages().list(userId=user_id, q=query,
-                                             pageToken=page_token).execute()
-          messages.extend(response['messages'])
+          try:
+              page_token = response['nextPageToken']
+              response = service.users().messages().list(userId=user_id, q=query,
+                                                 pageToken=page_token).execute()
+              messages.extend(response['messages'])
+          except:
+              import pdb
+              pdb.set_trace()
 
         #print(str(len(messages))+": \""+mChain+"\"")
         return len(messages)
@@ -244,9 +248,9 @@ else:
     for thread_id in threads:
         msgWords = list(GetText(thread_id['snippet']))
         #wordList.extend(msgWords)
-        wordList.append(["can't" if x=="cant" else x for x in msgWords])
+        wordList.append(["can't" if x=="cant" else "don't" if x=="dont" else x for x in msgWords])
 
-    maxTupleSize=10
+    maxTupleSize=15
 
     # track it all
     wordCounter = Counter()
@@ -263,29 +267,37 @@ else:
         hitCount = 0
 
         print("hitCount: " + str(hitCount) + ", phase: " + str(phase) + ", tupSize: " + str(tupSize))
-        while tupSize > phase and hitCount < minHit:
+        while tupSize > phase:
             tupSize-=1
             tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-            wordCounter.update(tuples)
-            tupCounter = Counter(tuples)
-            hitCount = countMessagesWithTuple(tupCounter.most_common(1)[0][0], service, 'me')
-            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+            if len(tuples)>0:
+                wordCounter.update(tuples)
+                tupCounter = Counter(tuples)
+                try:
+                    hitCount = countMessagesWithTuple(tupCounter.most_common(1)[0][0], service, 'me')
+                    print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+                    if hitCount > tupCounter.most_common(1)[0][1]:
+                        tupCounter[tupCounter.most_common(1)[0][0]] = hitCount
+                except:
+                    import pdb
+                    pdb.set_trace()
 
         print("Most hits: "+str(wordCounter.most_common(1)[0][1]))
 
         for low, high in zip([minHit, tooFew], [maxHit, tooMany]):
             # Find a tuple in the Goldilocks zone
-            if wordCounter.most_common(1)[0][1] >= low:
-                print("Low: "+str(low)+", High: "+str(high))
-                for k, v in wordCounter.most_common():
-                    if low <= v <= high:
-                        realV = countMessagesWithTuple(k, service, 'me')
-                        delta = k.count('+')
-                        print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(realV))
-                        if (low - delta) <= realV <= (high + (delta * delta)):
-                            print("Searching on: " + k)
-                            showNTell(k)
-                            break
+            print("Low: "+str(low)+", High: "+str(high))
+            #for k, v in wordCounter.most_common(min(10,len(wordCounter))):
+            for k, v in wordCounter.most_common():
+                delta = k.count('+')
+                if (low - delta) <= v <= high:
+                    #realV = countMessagesWithTuple(k, service, 'me')
+                    realV = v
+                    #print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low-delta)+" < "+str(realV)+" < "+str(high+(delta*delta)))
+                    if low < realV <= (high + (delta * delta)):
+                        print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low-delta)+" < "+str(realV)+" < "+str(high+(delta*delta)))
+                        showNTell(k)
+                        break
 
         if len(subWords) < 1:
           # Go and pull all of the subjects too
