@@ -28,7 +28,7 @@ from httplib2 import Http
 from oauth2client import file, client, tools
 
 import sys
-#import pdb
+import pdb
 import base64
 import email
 from apiclient import errors
@@ -39,8 +39,8 @@ from collections import Counter
 from HTMLParser import HTMLParser
 
 # tweakable variables
-tooFew = 5
-tooMany = 40
+tooFew = 10
+tooMany = 35
 justRight = 20
 
 class MLStripper(HTMLParser):
@@ -81,24 +81,40 @@ def ListThreadsWithLabels(service, user_id, label_ids=[]):
 
 def getThreadSubjects(service, user_id, threads):
   subWordLoL = []
+  bodyWordLoL = []
   iterNum = 0
   try:
+    import base64
     for threadId in threads:
       iterNum += 1
       print(str(iterNum)) if iterNum % 10 == 0 else print('.', end='')
       tdata = service.users().threads().get(userId=user_id, id=threadId['id']).execute()
-      msg = tdata['messages'][0]['payload']
-      for header in msg['headers']:
+      #msg = tdata['messages'][0]['payload']
+      for header in tdata['messages'][0]['payload']['headers']:
           if header['name'] == 'Subject':
             #print("Found subject: " + header['value'])
             #subWordLoL.extend(header['value'])
             subWordLoL.append(GetText(header['value']))
-            #pdb.set_trace()
             break
+      for msg in tdata['messages']:
+        body = msg['payload']['body']
+        if body['size'] > 0:
+            #import pdb
+            #pdb.set_trace()
+            if isinstance(body['data'], unicode):
+                b64 = str(body['data'])
+            else:
+                b64 = str(body['data'].encode("utf8"))
+            bodyWordLoL.append(GetText(base64.urlsafe_b64decode(b64)))
+      #pdb.set_trace()
     print(str(iterNum))
-    return subWordLoL
+    return subWordLoL, bodyWordLoL
   except errors.HttpError, error:
     print('An error occurred: %s' % error)
+  except TypeError, error:
+    import pdb
+    pdb.set_trace()
+      
 
 
 
@@ -250,7 +266,7 @@ else:
         #wordList.extend(msgWords)
         wordList.append(["can't" if x=="cant" else "don't" if x=="dont" else x for x in msgWords])
 
-    maxTupleSize=15
+    maxTupleSize=10
 
     # track it all
     wordCounter = Counter()
@@ -260,14 +276,16 @@ else:
     # Unhappy: we're going word by word
     # prime the loop
     subWords = []
+    bodyWords = []
     tupSize = maxTupleSize
     # print("Target: "+str(tooFew))
     # loop
-    for phase in range(2,-1,-1):
+    for phase in range(3,-1,-1):
         hitCount = 0
 
         print("hitCount: " + str(hitCount) + ", phase: " + str(phase) + ", tupSize: " + str(tupSize))
-        while tupSize > phase:
+        while tupSize >= phase:
+        #while tupSize > 1:
             tupSize-=1
             tuples = make_tuples_from_list_of_lists(tupSize, wordList)
             if len(tuples)>0:
@@ -277,7 +295,7 @@ else:
                     hitCount = countMessagesWithTuple(tupCounter.most_common(1)[0][0], service, 'me')
                     print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
                     if hitCount > tupCounter.most_common(1)[0][1]:
-                        tupCounter[tupCounter.most_common(1)[0][0]] = hitCount
+                        wordCounter[tupCounter.most_common(1)[0][0]] = hitCount
                 except:
                     import pdb
                     pdb.set_trace()
@@ -289,25 +307,33 @@ else:
             print("Low: "+str(low)+", High: "+str(high))
             #for k, v in wordCounter.most_common(min(10,len(wordCounter))):
             for k, v in wordCounter.most_common():
-                delta = k.count('+')
-                if (low - delta) <= v <= high:
-                    #realV = countMessagesWithTuple(k, service, 'me')
-                    realV = v
-                    #print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low-delta)+" < "+str(realV)+" < "+str(high+(delta*delta)))
-                    if low < realV <= (high + (delta * delta)):
+                if v >= low:
+                    #print("Snippet:\""+str(k)+"\": "+str(v)+".")
+                    delta = k.count('+')
+                    if (low - delta) <= v <= (high + delta):
+                        realV = countMessagesWithTuple(k, service, 'me')
+                        #realV = v
                         print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low-delta)+" < "+str(realV)+" < "+str(high+(delta*delta)))
-                        showNTell(k)
-                        break
+                        if (low-delta) <= realV <= (high + (delta * delta)):
+                            #print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low-delta)+" < "+str(realV)+" < "+str(high+(delta*delta)))
+                            showNTell(k)
+                            break
 
         if len(subWords) < 1:
           # Go and pull all of the subjects too
           print("Loading subjects for " + str(len(threads)) + " messages.")
-          subjLoL = getThreadSubjects(service, 'me', threads)
+          subjLoL, bodyLoL = getThreadSubjects(service, 'me', threads)
           for msgWords in subjLoL:
             #subWords.extend(msgWords)
             subWords.append(msgWords)
+          for msgWords in bodyLoL:
+            bodyWords.append(msgWords)
           #pdb.set_trace()
           wordList.extend(subWords)
+          wordCounter = Counter()
+          tupSize = maxTupleSize
+        elif len(bodyWords) < 1:
+          wordList.extend(bodyWords)
           wordCounter = Counter()
           tupSize = maxTupleSize
 
