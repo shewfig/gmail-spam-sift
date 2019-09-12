@@ -39,7 +39,7 @@ from collections import Counter
 from HTMLParser import HTMLParser
 
 # tweakable variables
-tooFew = 10
+tooFew = 5
 tooMany = 35
 justRight = 20
 
@@ -99,14 +99,14 @@ def getThreadSubjects(service, user_id, threads):
       for msg in tdata['messages']:
         body = msg['payload']['body']
         if body['size'] > 0:
+            if isinstance(body['data'], unicode):
+                b64 = base64.urlsafe_b64decode(str(body['data']))
+            else:
+                b64 = base64.urlsafe_b64decode(str(body['data'].encode("utf8")))
+            bodyText=GetText(b64)
+            bodyWordLoL.append(bodyText)
             #import pdb
             #pdb.set_trace()
-            if isinstance(body['data'], unicode):
-                b64 = str(body['data'])
-            else:
-                b64 = str(body['data'].encode("utf8"))
-            bodyWordLoL.append(GetText(base64.urlsafe_b64decode(b64)))
-      #pdb.set_trace()
     print(str(iterNum))
     return subWordLoL, bodyWordLoL
   except errors.HttpError, error:
@@ -266,7 +266,7 @@ else:
         #wordList.extend(msgWords)
         wordList.append(["can't" if x=="cant" else "don't" if x=="dont" else x for x in msgWords])
 
-    maxTupleSize=10
+    maxTupleSize=6
 
     # track it all
     wordCounter = Counter()
@@ -280,48 +280,43 @@ else:
     tupSize = maxTupleSize
     # print("Target: "+str(tooFew))
     # loop
-    for phase in range(3,-1,-1):
+    for phase in range(2,-1,-1):
         hitCount = 0
 
         print("hitCount: " + str(hitCount) + ", phase: " + str(phase) + ", tupSize: " + str(tupSize))
         while tupSize >= phase:
         #while tupSize > 1:
+            # +1 count of all previous results
+            wordCounter.update(list(wordCounter))
             tupSize-=1
             tuples = make_tuples_from_list_of_lists(tupSize, wordList)
             if len(tuples)>0:
-                wordCounter.update(tuples)
                 tupCounter = Counter(tuples)
-                try:
-                    hitCount = countMessagesWithTuple(tupCounter.most_common(1)[0][0], service, 'me')
-                    print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-                    if hitCount > tupCounter.most_common(1)[0][1]:
-                        wordCounter[tupCounter.most_common(1)[0][0]] = hitCount
-                except:
-                    import pdb
-                    pdb.set_trace()
+                wordCounter.update(Counter(el for el in tupCounter.elements() if tupCounter[el] > tooFew))
+                #hitCount = countMessagesWithTuple(tupCounter.most_common(1)[0][0], service, 'me')
+                hitCount = tupCounter.most_common(1)[0][1]
+                print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+        #import pdb
+        #pdb.set_trace()
 
-        print("Most hits: "+str(wordCounter.most_common(1)[0][1]))
+        next if len(wordCounter)==0 else print("Most hits: "+str(wordCounter.most_common(1)[0][1]))
 
         for low, high in zip([minHit, tooFew], [maxHit, tooMany]):
             # Find a tuple in the Goldilocks zone
             print("Low: "+str(low)+", High: "+str(high))
             #for k, v in wordCounter.most_common(min(10,len(wordCounter))):
             for k, v in wordCounter.most_common():
-                if v >= low:
-                    #print("Snippet:\""+str(k)+"\": "+str(v)+".")
-                    delta = k.count('+')
-                    if (low - delta) <= v <= (high + delta):
-                        realV = countMessagesWithTuple(k, service, 'me')
-                        #realV = v
-                        print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low-delta)+" < "+str(realV)+" < "+str(high+(delta*delta)))
-                        if (low-delta) <= realV <= (high + (delta * delta)):
-                            #print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low-delta)+" < "+str(realV)+" < "+str(high+(delta*delta)))
-                            showNTell(k)
-                            break
+                if v <= high:
+                    realV = countMessagesWithTuple(k, service, 'me')
+                    #realV = v
+                    print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low)+" < "+str(realV)+" < "+str(high))
+                    if low <= realV <= high:
+                        showNTell(k)
+                        break
 
         if len(subWords) < 1:
           # Go and pull all of the subjects too
-          print("Loading subjects for " + str(len(threads)) + " messages.")
+          print("Loading " + str(len(threads)) + " messages.")
           subjLoL, bodyLoL = getThreadSubjects(service, 'me', threads)
           for msgWords in subjLoL:
             #subWords.extend(msgWords)
@@ -332,10 +327,10 @@ else:
           wordList.extend(subWords)
           wordCounter = Counter()
           tupSize = maxTupleSize
-        elif len(bodyWords) < 1:
-          wordList.extend(bodyWords)
-          wordCounter = Counter()
-          tupSize = maxTupleSize
+        #else:
+          #wordList.extend(bodyWords)
+          #wordCounter = Counter()
+          #tupSize = maxTupleSize
 
 # Just load all messages
 showNTell(None)
