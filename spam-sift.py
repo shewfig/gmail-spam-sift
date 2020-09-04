@@ -40,8 +40,8 @@ from HTMLParser import HTMLParser
 
 # tweakable variables
 tooFew = 5
-tooMany = 35
-justRight = 20
+tooMany = 60
+justRight = 30
 
 class MLStripper(HTMLParser):
     def __init__(self):
@@ -80,39 +80,40 @@ def ListThreadsWithLabels(service, user_id, label_ids=[]):
 
 
 def getThreadSubjects(service, user_id, threads):
-  subWordLoL = []
-  bodyWordLoL = []
+  subjWordsList = []
+  bodyWordsList = []
   iterNum = 0
   try:
     import base64
     for threadId in threads:
       iterNum += 1
-      print(str(iterNum)) if iterNum % 10 == 0 else print('.', end='')
+      amtDone = iterNum/float(len(threads))
+      sys.stdout.write("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone*100))
+      sys.stdout.flush()
+      #print(str(iterNum)) if iterNum % 10 == 0 else print('.', end='')
       tdata = service.users().threads().get(userId=user_id, id=threadId['id']).execute()
       #msg = tdata['messages'][0]['payload']
       for header in tdata['messages'][0]['payload']['headers']:
           if header['name'] == 'Subject':
             #print("Found subject: " + header['value'])
-            #subWordLoL.extend(header['value'])
-            subWordLoL.append(GetText(header['value']))
+            #subjWordsList.extend(header['value'])
+            subjWordsList.append(header['value'])
             break
       for msg in tdata['messages']:
         body = msg['payload']['body']
         if body['size'] > 0:
             if isinstance(body['data'], unicode):
-                b64 = base64.urlsafe_b64decode(str(body['data']))
+                bodyText = base64.urlsafe_b64decode(str(body['data']))
             else:
-                b64 = base64.urlsafe_b64decode(str(body['data'].encode("utf8")))
-            bodyText=GetText(b64)
-            bodyWordLoL.append(bodyText)
-            #import pdb
+                bodyText = base64.urlsafe_b64decode(str(body['data'].encode("utf8")))
+            #bodyText=GetText(b64)
             #pdb.set_trace()
-    print(str(iterNum))
-    return subWordLoL, bodyWordLoL
+            bodyWordsList.append(bodyText)
+    print("\n")
+    return subjWordsList, bodyWordsList
   except errors.HttpError, error:
     print('An error occurred: %s' % error)
   except TypeError, error:
-    import pdb
     pdb.set_trace()
       
 
@@ -179,7 +180,7 @@ def make_tuples_from_list_of_lists(size, corpus):
             thisTupList = set()
             # make a list of all tuples (markhov chains)
             for i in range(len(thisList)-(size-1)):
-                thisTupList.add('+'.join(thisList[i + x] for x in range(size) ))
+                thisTupList.add(' '.join(thisList[i + x] for x in range(size) ))
             # add per-message set of chains to the return list
             retList.extend(list(thisTupList))
     return retList
@@ -190,7 +191,7 @@ def showNTell(mChain):
     mUrl = "https://mail.google.com/mail/u/0/"
 
     if mChain is not None:
-        mUrl += "#search/in%3Aspam+" + str(mChain)
+        mUrl += "#search/in%3Aspam+" + str(mChain).replace(" ","+")
     else:
         mUrl += "#spam"
     
@@ -199,29 +200,24 @@ def showNTell(mChain):
 
 def countMessagesWithTuple(mChain, service, user_id='me'):
     if mChain is not None:
-      query = "in:spam AND NOT(label:trash) AND " + str(mChain) + "\""
+      query = "in:spam AND NOT(label:trash) AND " + str(mChain)
       try:
         response = service.users().messages().list(userId=user_id,
                                                    q=query).execute()
-        messages = []
-        if 'messages' in response:
-          messages.extend(response['messages'])
-
-        while 'nextPageToken' in response:
-          try:
-              page_token = response['nextPageToken']
-              response = service.users().messages().list(userId=user_id, q=query,
-                                                 pageToken=page_token).execute()
-              messages.extend(response['messages'])
-          except:
-              import pdb
-              pdb.set_trace()
-
-        #print(str(len(messages))+": \""+mChain+"\"")
-        return len(messages)
+        #print("Key: "+mChain+" Count: "+ str(response['resultSizeEstimate']))
+        return response['resultSizeEstimate']
       except errors.HttpError, error:
         print('An error occurred: %s')% error
     
+def walkCounter(tupCounter, service, low, high):
+    for k, v in tupCounter.most_common():
+        if v >= low:
+            realV = countMessagesWithTuple("\""+k+"\"", service, 'me')
+            #realV = v
+            #print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low)+" < "+str(realV)+" < "+str(high))
+            if low <= realV <= high:
+                showNTell("\""+k+"\"")
+                break
     
 # Setup the Gmail API
 SCOPES = 'https://www.googleapis.com/auth/gmail.readonly'
@@ -237,7 +233,7 @@ print("Getting user info")
 useraddr = str(getUserAddress(service, 'me'))
 print("User address = "+useraddr)
 
-print("Retrieving messages")
+print("Loading message snippets")
 threads = ListThreadsWithLabels(service, 'me', 'SPAM')
 
 # optimize: only analyze if there are enough messages
@@ -254,9 +250,11 @@ else:
         tooMany = len(threads)
 
     # improve hit visual efficicency
-    justRight = min(justRight, len(threads)//2)
-    minHit = min(max(tooFew, tooFew + (abs(justRight - tooFew)//2)),len(threads))
-    maxHit = min(min(tooMany, tooMany - (abs(tooMany - justRight)//2)),len(threads))
+    #justRight = min(justRight, len(threads)//2)
+    #minHit = min(max(tooFew, tooFew + (abs(justRight - tooFew)//2)),len(threads))
+    #maxHit = min(min(tooMany, tooMany - (abs(tooMany - justRight)//2)),len(threads))
+    minHit = min((tooFew + tooFew + len(threads)//2)//3,justRight)
+    maxHit = (tooMany + tooMany + len(threads)//2)//3
     print("Low: "+str(minHit)+", High: "+str(maxHit))
 
     # Try snippet list first, it's fast
@@ -275,62 +273,103 @@ else:
     # Happy: there's a common enough result
     # Unhappy: we're going word by word
     # prime the loop
-    subWords = []
+    subjWords = []
     bodyWords = []
-    tupSize = maxTupleSize
     # print("Target: "+str(tooFew))
     # loop
-    for phase in range(2,-1,-1):
-        hitCount = 0
+    tupSize = maxTupleSize
+    hitCount = 0
 
-        print("hitCount: " + str(hitCount) + ", phase: " + str(phase) + ", tupSize: " + str(tupSize))
-        while tupSize >= phase:
-        #while tupSize > 1:
-            # +1 count of all previous results
-            wordCounter.update(list(wordCounter))
-            tupSize-=1
-            tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-            if len(tuples)>0:
-                tupCounter = Counter(tuples)
-                wordCounter.update(Counter(el for el in tupCounter.elements() if tupCounter[el] > tooFew))
-                #hitCount = countMessagesWithTuple(tupCounter.most_common(1)[0][0], service, 'me')
-                hitCount = tupCounter.most_common(1)[0][1]
-                print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-        #import pdb
-        #pdb.set_trace()
+    while tupSize > 1:
+        # +1 count of all previous results
+        wordCounter.update(list(wordCounter))
+        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+        if len(tuples)>0:
+            tupCounter = Counter(tuples)
+            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
+            hitCount = tupCounter.most_common(1)[0][1]
+            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+            walkCounter(tupCounter, service, minHit, maxHit)
+        tupSize-=1
+        
+    if len(wordCounter)>0:
+        walkCounter(wordCounter, service, tooFew, len(threads)//2)
 
-        next if len(wordCounter)==0 else print("Most hits: "+str(wordCounter.most_common(1)[0][1]))
+    print("Loading " + str(len(threads)) + " messages.")
+    subjList, bodyList = getThreadSubjects(service, 'me', threads)
+    print("Adding subjects to search space")
+    wordList.extend(list(GetText(wl) for wl in subjList))
+    wordCounter.clear
+    tupSize = maxTupleSize
 
-        for low, high in zip([minHit, tooFew], [maxHit, tooMany]):
-            # Find a tuple in the Goldilocks zone
-            print("Low: "+str(low)+", High: "+str(high))
-            #for k, v in wordCounter.most_common(min(10,len(wordCounter))):
-            for k, v in wordCounter.most_common():
-                if v <= high:
-                    realV = countMessagesWithTuple(k, service, 'me')
-                    #realV = v
-                    print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low)+" < "+str(realV)+" < "+str(high))
-                    if low <= realV <= high:
-                        showNTell(k)
-                        break
+    while tupSize > 1:
+        # +1 count of all previous results
+        wordCounter.update(list(wordCounter))
+        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+        if len(tuples)>0:
+            tupCounter = Counter(tuples)
+            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
+            hitCount = tupCounter.most_common(1)[0][1]
+            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+            walkCounter(tupCounter, service, minHit, maxHit)
+        tupSize-=1
+        
+    if len(wordCounter)>0:
+        walkCounter(wordCounter, service, tooFew, len(threads)//2)
 
-        if len(subWords) < 1:
-          # Go and pull all of the subjects too
-          print("Loading " + str(len(threads)) + " messages.")
-          subjLoL, bodyLoL = getThreadSubjects(service, 'me', threads)
-          for msgWords in subjLoL:
-            #subWords.extend(msgWords)
-            subWords.append(msgWords)
-          for msgWords in bodyLoL:
-            bodyWords.append(msgWords)
-          #pdb.set_trace()
-          wordList.extend(subWords)
-          wordCounter = Counter()
-          tupSize = maxTupleSize
-        #else:
-          #wordList.extend(bodyWords)
-          #wordCounter = Counter()
-          #tupSize = maxTupleSize
+    tupSize=1
+    # +1 count of all previous results
+    wordCounter.update(list(wordCounter))
+    tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+    if len(tuples)>0:
+        tupCounter = Counter(tuples)
+        wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
+        hitCount = tupCounter.most_common(1)[0][1]
+        print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+        walkCounter(tupCounter, service, minHit, maxHit)
+
+#    print("Adding bodies to search space")
+#    wordList.extend(list(GetText(wl) for wl in bodyList))
+#    wordCounter.clear
+#    tupSize = maxTupleSize
+#
+#    tupSize = 1
+#    while tupSize > 0:
+#        # +1 count of all previous results
+#        wordCounter.update(list(wordCounter))
+#        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+#        if len(tuples)>0:
+#            tupCounter = Counter(tuples)
+#            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
+#            hitCount = tupCounter.most_common(1)[0][1]
+#            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+#            walkCounter(tupCounter, service, minHit, maxHit)
+##        tupCount = len(tuples)
+#        print("Tuple(%d): pass 1 = %d"%(tupSize,tupCount))
+#        if tupCount>0:
+#            tupCounter = Counter(tuples)
+#            iterNum=0
+#            for el,v in tupCounter.items():
+#                iterNum += 1
+#                amtDone = iterNum/float(tupCount)
+#                sys.stdout.write("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone*100))
+#                sys.stdout.flush()
+#                if v < minHit:
+#                    del tupCounter[el]   
+#                else:
+#                    qHits = countMessagesWithTuple("\""+el+"\"", service, 'me')
+#                    if qHits < minHit:    
+#                        del tupCounter[el] 
+#            print("\nTuple(%d): pass 2 = %d"%(tupSize,len(tupCounter)))
+#            if len(tupCounter)>0:
+#                wordCounter.update(tupCounter)
+#                hitCount = tupCounter.most_common(1)[0][1]
+#                print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+#                walkCounter(tupCounter, service, minHit, maxHit)
+#        tupSize-=1
+        
+    if len(wordCounter)>0:
+        walkCounter(wordCounter, service, tooFew, len(threads)//2)
 
 # Just load all messages
 showNTell(None)
