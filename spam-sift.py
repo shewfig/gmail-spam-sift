@@ -22,7 +22,7 @@ and use most frequent chains to view subset of spam
 Multiple decisions of fewer related spam messages is easier than a single decision of all messages
 """
 
-from __future__ import print_function
+
 from apiclient.discovery import build
 from httplib2 import Http
 from oauth2client import file, client, tools
@@ -36,7 +36,7 @@ from apiclient import errors
 import re
 from collections import Counter
 
-from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 
 # tweakable variables
 tooFew = 5
@@ -46,6 +46,8 @@ justRight = 30
 class MLStripper(HTMLParser):
     def __init__(self):
         self.reset()
+        self.strict = False
+        self.convert_charrefs = True
         self.fed = []
     def handle_data(self, d):
         self.fed.append(d)
@@ -75,7 +77,7 @@ def ListThreadsWithLabels(service, user_id, label_ids=[]):
       threads.extend(response['threads'])
 
     return threads
-  except errors.HttpError, error:
+  except errors.HttpError as error:
     print('An error occurred: %s' % error)
 
 
@@ -102,7 +104,7 @@ def getThreadSubjects(service, user_id, threads):
       for msg in tdata['messages']:
         body = msg['payload']['body']
         if body['size'] > 0:
-            if isinstance(body['data'], unicode):
+            if isinstance(body['data'], str):
                 bodyText = base64.urlsafe_b64decode(str(body['data']))
             else:
                 bodyText = base64.urlsafe_b64decode(str(body['data'].encode("utf8")))
@@ -111,9 +113,9 @@ def getThreadSubjects(service, user_id, threads):
             bodyWordsList.append(bodyText)
     print("\n")
     return subjWordsList, bodyWordsList
-  except errors.HttpError, error:
+  except errors.HttpError as error:
     print('An error occurred: %s' % error)
-  except TypeError, error:
+  except TypeError as error:
     pdb.set_trace()
       
 
@@ -125,7 +127,7 @@ def getUserAddress(service, user_id='me'):
         #pdb.set_trace()
         return response['emailAddress']
 
-    except errors.HttpError, error:
+    except errors.HttpError as error:
         print('An error occurred: %s' % error)
 
 
@@ -144,7 +146,7 @@ def GetText(payload):
 def make_tuples_from_list_of_lists(size, corpus):
     retList = []
     if size < 2:
-        badList = [u'http', u'html', u'www', u'com', u's', u't', u'gmail', u'hi']
+        badList = ['http', 'html', 'www', 'com', 's', 't', 'gmail', 'hi']
         try:
             from nltk.corpus import stopwords
             stop_words = list(stopwords.words('english'))
@@ -206,7 +208,7 @@ def countMessagesWithTuple(mChain, service, user_id='me'):
                                                    q=query).execute()
         #print("Key: "+mChain+" Count: "+ str(response['resultSizeEstimate']))
         return response['resultSizeEstimate']
-      except errors.HttpError, error:
+      except errors.HttpError as error:
         print('An error occurred: %s')% error
     
 def walkCounter(tupCounter, service, low, high):
