@@ -36,29 +36,18 @@ from apiclient import errors
 import re
 from collections import Counter
 
-from html.parser import HTMLParser
-
 # tweakable variables
 tooFew = 5
 tooMany = 60
 justRight = 30
 
-class MLStripper(HTMLParser):
-    def __init__(self):
-        self.reset()
-        self.strict = False
-        self.convert_charrefs = True
-        self.fed = []
-    def handle_data(self, d):
-        self.fed.append(d)
-    def get_data(self):
-        return ''.join(self.fed)
+from lxml import html
 
-def strip_tags(html):
-    s = MLStripper()
-    s.feed(html)
-    return s.get_data()
-
+def strip_tags(payload):
+    if isinstance(payload, str) and len(payload)>0:
+        return str(html.fromstring(str(payload)).text_content())
+    else:
+        return str(payload) 
 
 
 def ListThreadsWithLabels(service, user_id, label_ids=[]):
@@ -90,8 +79,7 @@ def getThreadSubjects(service, user_id, threads):
     for threadId in threads:
       iterNum += 1
       amtDone = iterNum/float(len(threads))
-      sys.stdout.write("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone*100))
-      sys.stdout.flush()
+      progBar(amtDone)
       #print(str(iterNum)) if iterNum % 10 == 0 else print('.', end='')
       tdata = service.users().threads().get(userId=user_id, id=threadId['id']).execute()
       #msg = tdata['messages'][0]['payload']
@@ -111,7 +99,6 @@ def getThreadSubjects(service, user_id, threads):
             #bodyText=GetText(b64)
             #pdb.set_trace()
             bodyWordsList.append(bodyText)
-    print("\n")
     return subjWordsList, bodyWordsList
   except errors.HttpError as error:
     print('An error occurred: %s' % error)
@@ -143,6 +130,14 @@ def GetText(payload):
     return wordlist
 
 
+def cleanup_nltk_at_exit(nltkTmpDir):
+    # some basic sanity, but /shrug
+    if len(nltkTmpDir) > 4 and not nltkTmpDir.endswith('/'):
+        print("Cleaning up downloaded file(s)")
+        from shutil import rmtree
+        rmtree(nltkTmpDir)
+
+
 def make_tuples_from_list_of_lists(size, corpus):
     retList = []
     if size < 2:
@@ -151,18 +146,16 @@ def make_tuples_from_list_of_lists(size, corpus):
             from nltk.corpus import stopwords
             stop_words = list(stopwords.words('english'))
             badList.extend(stop_words)
-        except LookupError:
+        except:
+            import atexit
             import nltk
             from tempfile import mkdtemp
-            from shutil import rmtree
             nltkTmpDir = mkdtemp()
             nltk.data.path = [ nltkTmpDir ]
             nltkDl = nltk.downloader.Downloader(download_dir=nltkTmpDir)
             nltkDl.download(info_or_id='stopwords')
             stop_words = list(stopwords.words('english'))
-            # some basic sanity, but /shrug
-            if len(nltkTmpDir) > 4 and not nltkTmpDir.endswith('/'):
-                rmtree(nltkTmpDir)
+            atexit.register(cleanup_nltk_at_exit, nltkTmpDir)
             badList.extend(stop_words)
 
         # create a set per message to get unique words for that message
@@ -211,15 +204,30 @@ def countMessagesWithTuple(mChain, service, user_id='me'):
       except errors.HttpError as error:
         print('An error occurred: %s')% error
     
+def progBar(amtDone):
+    sys.stdout.write("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone*100))
+    sys.stdout.flush()
+    if amtDone == 1:
+        print("\n")
+
+
 def walkCounter(tupCounter, service, low, high):
+    if tupCounter.most_common()[0][1] < low:
+        return 
+    tupCount = len(tupCounter)
+    iterNum = 0
     for k, v in tupCounter.most_common():
+        iterNum += 1
+        amtDone = iterNum/float(tupCount)
+        progBar(amtDone)
         if v >= low:
             realV = countMessagesWithTuple("\""+k+"\"", service, 'me')
             #realV = v
-            #print("Snippet:\""+str(k)+"\": "+str(v)+". Text: "+str(low)+" < "+str(realV)+" < "+str(high))
             if low <= realV <= high:
                 showNTell("\""+k+"\"")
                 break
+            elif realV == 0:
+                del tupCounter[k]
     
 # Setup the Gmail API
 SCOPES = 'https://www.googleapis.com/auth/gmail.readonly'
@@ -335,8 +343,8 @@ else:
 #    wordCounter.clear
 #    tupSize = maxTupleSize
 #
-#    tupSize = 1
-#    while tupSize > 0:
+#    tupSize = 3
+#    while tupSize > 1:
 #        # +1 count of all previous results
 #        wordCounter.update(list(wordCounter))
 #        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
@@ -345,23 +353,20 @@ else:
 #            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
 #            hitCount = tupCounter.most_common(1)[0][1]
 #            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-#            walkCounter(tupCounter, service, minHit, maxHit)
-##        tupCount = len(tuples)
+#            print("Testing %d tuples"%len(tupCounter))
+#            #walkCounter(tupCounter, service, minHit, maxHit)
+#        tupCount = len(tupCounter)
 #        print("Tuple(%d): pass 1 = %d"%(tupSize,tupCount))
 #        if tupCount>0:
 #            tupCounter = Counter(tuples)
 #            iterNum=0
-#            for el,v in tupCounter.items():
+#            tupRefCounter = Counter(tupCounter)
+#            for el,v in tupRefCounter.items():
 #                iterNum += 1
 #                amtDone = iterNum/float(tupCount)
-#                sys.stdout.write("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone*100))
-#                sys.stdout.flush()
-#                if v < minHit:
+#                progBar(amtDone)
+#                if v < minHit or v > maxHit:
 #                    del tupCounter[el]   
-#                else:
-#                    qHits = countMessagesWithTuple("\""+el+"\"", service, 'me')
-#                    if qHits < minHit:    
-#                        del tupCounter[el] 
 #            print("\nTuple(%d): pass 2 = %d"%(tupSize,len(tupCounter)))
 #            if len(tupCounter)>0:
 #                wordCounter.update(tupCounter)
