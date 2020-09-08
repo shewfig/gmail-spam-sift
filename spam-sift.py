@@ -79,7 +79,7 @@ def getThreadSubjects(service, user_id, threads):
     for threadId in threads:
       iterNum += 1
       amtDone = iterNum/float(len(threads))
-      progBar(amtDone)
+      progBar(amtDone,"Downloading Messages")
       #print(str(iterNum)) if iterNum % 10 == 0 else print('.', end='')
       tdata = service.users().threads().get(userId=user_id, id=threadId['id']).execute()
       #msg = tdata['messages'][0]['payload']
@@ -102,8 +102,6 @@ def getThreadSubjects(service, user_id, threads):
     return subjWordsList, bodyWordsList
   except errors.HttpError as error:
     print('An error occurred: %s' % error)
-  except TypeError as error:
-    pdb.set_trace()
       
 
 
@@ -204,11 +202,12 @@ def countMessagesWithTuple(mChain, service, user_id='me'):
       except errors.HttpError as error:
         print('An error occurred: %s')% error
     
-def progBar(amtDone):
-    sys.stdout.write("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone*100))
+def progBar(amtDone, msg="Progress"):
+    barLen = 58 - len(msg)
+    sys.stdout.write("\r{msg}: [{hashBar:{barWid}{type}}] {pctDone:.1f}%".format(hashBar='#' * int(amtDone * barLen), barWid=barLen, pctDone=amtDone*100, msg=msg, type="s"))
     sys.stdout.flush()
     if amtDone == 1:
-        print("\n")
+        print()
 
 
 def walkCounter(tupCounter, service, low, high):
@@ -216,14 +215,16 @@ def walkCounter(tupCounter, service, low, high):
         return 
     tupCount = len(tupCounter)
     iterNum = 0
+    msg="{2} Tuples: {0}-{1}".format(low,high,tupCount)
     for k, v in tupCounter.most_common():
         iterNum += 1
         amtDone = iterNum/float(tupCount)
-        progBar(amtDone)
+        progBar(amtDone,msg)
         if v >= low:
             realV = countMessagesWithTuple("\""+k+"\"", service, 'me')
             #realV = v
             if low <= realV <= high:
+                print("[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
                 showNTell("\""+k+"\"")
                 break
             elif realV == 0:
