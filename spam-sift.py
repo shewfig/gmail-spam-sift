@@ -210,8 +210,8 @@ def progBar(amtDone, msg="Progress"):
         print()
 
 
-def walkCounter(tupCounter, service, low, high):
-    if tupCounter.most_common()[0][1] < low:
+def walkCounter(tupCounter, service, low, high, lowest):
+    if tupCounter.most_common()[0][1] < lowest:
         return 
     tupCount = len(tupCounter)
     iterNum = 0
@@ -220,12 +220,12 @@ def walkCounter(tupCounter, service, low, high):
         iterNum += 1
         amtDone = iterNum/float(tupCount)
         progBar(amtDone,msg)
-        if v >= low:
-            realV = countMessagesWithTuple("\""+k+"\"", service, 'me')
+        if v >= lowest:
+            realV = countMessagesWithTuple(k, service, 'me')
             #realV = v
             if low <= realV <= high:
-                print("[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
-                showNTell("\""+k+"\"")
+                print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
+                showNTell(k)
                 break
             elif realV == 0:
                 del tupCounter[k]
@@ -300,11 +300,11 @@ else:
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            walkCounter(tupCounter, service, minHit, maxHit)
+            walkCounter(tupCounter, service, minHit, maxHit, tooFew)
         tupSize-=1
         
     if len(wordCounter)>0:
-        walkCounter(wordCounter, service, tooFew, len(threads)//2)
+        walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
 
     print("Loading " + str(len(threads)) + " messages.")
     subjList, bodyList = getThreadSubjects(service, 'me', threads)
@@ -322,11 +322,11 @@ else:
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            walkCounter(tupCounter, service, minHit, maxHit)
+            walkCounter(tupCounter, service, minHit, maxHit, tooFew)
         tupSize-=1
         
     if len(wordCounter)>0:
-        walkCounter(wordCounter, service, tooFew, len(threads)//2)
+        walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
 
     tupSize=1
     # +1 count of all previous results
@@ -337,7 +337,7 @@ else:
         wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         hitCount = tupCounter.most_common(1)[0][1]
         print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-        walkCounter(tupCounter, service, minHit, maxHit)
+        walkCounter(tupCounter, service, minHit, maxHit, tooFew)
 
 #    print("Adding bodies to search space")
 #    wordList.extend(list(GetText(wl) for wl in bodyList))
@@ -377,7 +377,7 @@ else:
 #        tupSize-=1
         
     if len(wordCounter)>0:
-        walkCounter(wordCounter, service, tooFew, len(threads)//2)
+        walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
 
 # Just load all messages
 showNTell(None)
