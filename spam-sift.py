@@ -42,10 +42,12 @@ tooMany = 60
 justRight = 30
 
 from lxml import html
+from lxml.html.clean import clean_html
 
 def strip_tags(payload):
     if isinstance(payload, str) and len(payload)>0:
-        return str(html.fromstring(str(payload)).text_content())
+        tree = html.fromstring(payload)
+        return str(clean_html(tree).text_content().strip())
     else:
         return str(payload) 
 
@@ -125,6 +127,7 @@ def unwrap(payload):
 def GetText(payload):
     text = strip_tags(payload)
     wordlist = re.findall(r'[A-Za-z0-9\']+', text.lower())
+    #pdb.set_trace()
     return wordlist
 
 
@@ -175,7 +178,8 @@ def make_tuples_from_list_of_lists(size, corpus):
             # make a list of all tuples (markhov chains)
             for i in range(len(thisList)-(size-1)):
                 thisTup = (' '.join(thisList[i + x] for x in range(size) if thisList[i+x] not in badList))
-                thisTupList.add(thisTup) if len(thisTup) == size else next
+                if len(thisTup.split()) == size:
+                    thisTupList.add(thisTup)
             # add per-message set of chains to the return list
             retList.extend(list(thisTupList))
     return retList
