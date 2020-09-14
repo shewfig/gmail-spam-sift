@@ -201,7 +201,7 @@ def countMessagesWithTuple(mChain, service, user_id='me'):
     if mChain is not None:
       query = "in:spam AND NOT(label:trash) AND " + str(mChain)
       try:
-        response = service.users().messages().list(userId=user_id,
+        response = service.users().threads().list(userId=user_id,
                                                    q=query).execute()
         #print("Key: "+mChain+" Count: "+ str(response['resultSizeEstimate']))
         return response['resultSizeEstimate']
@@ -348,42 +348,42 @@ else:
     if len(wordCounter)>0:
         walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
 
-    print("Adding bodies to search space")
-    wordList.extend(list(GetText(wl) for wl in bodyList))
-    wordCounter.clear
-    tupSize = maxTupleSize
-
-    tupSize = 5
-    while tupSize > 1:
-        # +1 count of all previous results
-        wordCounter.update(list(wordCounter))
-        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-        if len(tuples)>0:
-            tupCounter = Counter(tuples)
-            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
-            hitCount = tupCounter.most_common(1)[0][1]
-            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            print("Testing %d tuples"%len(tupCounter))
-            #walkCounter(tupCounter, service, minHit, maxHit, tooFew)
-        tupCount = len(tupCounter)
-        print("Tuple(%d): pass 1 = %d"%(tupSize,tupCount))
-        if tupCount>0:
-            tupCounter = Counter(tuples)
-            iterNum=0
-            tupRefCounter = Counter(tupCounter)
-            for el,v in tupRefCounter.items():
-                iterNum += 1
-                amtDone = iterNum/float(tupCount)
-                progBar(amtDone)
-                if v < minHit or v > maxHit:
-                    del tupCounter[el]   
-            print("\nTuple(%d): pass 2 = %d"%(tupSize,len(tupCounter)))
-            if len(tupCounter)>0:
-                wordCounter.update(tupCounter)
-                hitCount = tupCounter.most_common(1)[0][1]
-                print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-                walkCounter(tupCounter, service, minHit, maxHit, tooFew)
-        tupSize-=1
+#    print("Adding bodies to search space")
+#    wordList.extend(list(GetText(wl) for wl in bodyList))
+#    wordCounter.clear
+#    tupSize = maxTupleSize
+#
+#    tupSize = 5
+#    while tupSize > 1:
+#        # +1 count of all previous results
+#        wordCounter.update(list(wordCounter))
+#        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+#        if len(tuples)>0:
+#            tupCounter = Counter(tuples)
+#            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
+#            hitCount = tupCounter.most_common(1)[0][1]
+#            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+#            print("Testing %d tuples"%len(tupCounter))
+#            #walkCounter(tupCounter, service, minHit, maxHit, tooFew)
+#        tupCount = len(tupCounter)
+#        print("Tuple(%d): pass 1 = %d"%(tupSize,tupCount))
+#        if tupCount>0:
+#            tupCounter = Counter(tuples)
+#            iterNum=0
+#            tupRefCounter = Counter(tupCounter)
+#            for el,v in tupRefCounter.items():
+#                iterNum += 1
+#                amtDone = iterNum/float(tupCount)
+#                progBar(amtDone)
+#                if v < minHit or v > maxHit:
+#                    del tupCounter[el]
+#            print("\nTuple(%d): pass 2 = %d"%(tupSize,len(tupCounter)))
+#            if len(tupCounter)>0:
+#                wordCounter.update(tupCounter)
+#                hitCount = tupCounter.most_common(1)[0][1]
+#                print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+#                walkCounter(tupCounter, service, minHit, maxHit, tooFew)
+#        tupSize-=1
         
 # Just load all messages
 showNTell(None)
