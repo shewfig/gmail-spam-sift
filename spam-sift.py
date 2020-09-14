@@ -138,8 +138,8 @@ def cleanup_nltk_at_exit(nltkTmpDir):
 
 def make_tuples_from_list_of_lists(size, corpus):
     retList = []
+    badList = ['http', 'href', 'html', 'www', 'com', 's', 't', 'gmail', 'hi', 'doctype', 'w3c', 'dtd', 'https']
     if size < 2:
-        badList = ['http', 'html', 'www', 'com', 's', 't', 'gmail', 'hi']
         try:
             from nltk.corpus import stopwords
             stop_words = list(stopwords.words('english'))
@@ -168,12 +168,14 @@ def make_tuples_from_list_of_lists(size, corpus):
                 retList.extend(set(w for w in thisList if w in badList))
 
     else:
+        thisTupList = set()
         for thisList in corpus:
             # create a set per message to get unique tuples for that message
-            thisTupList = set()
+            thisTupList.clear()
             # make a list of all tuples (markhov chains)
             for i in range(len(thisList)-(size-1)):
-                thisTupList.add(' '.join(thisList[i + x] for x in range(size) ))
+                thisTup = (' '.join(thisList[i + x] for x in range(size) if thisList[i+x] not in badList))
+                thisTupList.add(thisTup) if len(thisTup) == size else next
             # add per-message set of chains to the return list
             retList.extend(list(thisTupList))
     return retList
@@ -339,45 +341,45 @@ else:
         print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
         walkCounter(tupCounter, service, minHit, maxHit, tooFew)
 
-#    print("Adding bodies to search space")
-#    wordList.extend(list(GetText(wl) for wl in bodyList))
-#    wordCounter.clear
-#    tupSize = maxTupleSize
-#
-#    tupSize = 3
-#    while tupSize > 1:
-#        # +1 count of all previous results
-#        wordCounter.update(list(wordCounter))
-#        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-#        if len(tuples)>0:
-#            tupCounter = Counter(tuples)
-#            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
-#            hitCount = tupCounter.most_common(1)[0][1]
-#            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-#            print("Testing %d tuples"%len(tupCounter))
-#            #walkCounter(tupCounter, service, minHit, maxHit)
-#        tupCount = len(tupCounter)
-#        print("Tuple(%d): pass 1 = %d"%(tupSize,tupCount))
-#        if tupCount>0:
-#            tupCounter = Counter(tuples)
-#            iterNum=0
-#            tupRefCounter = Counter(tupCounter)
-#            for el,v in tupRefCounter.items():
-#                iterNum += 1
-#                amtDone = iterNum/float(tupCount)
-#                progBar(amtDone)
-#                if v < minHit or v > maxHit:
-#                    del tupCounter[el]   
-#            print("\nTuple(%d): pass 2 = %d"%(tupSize,len(tupCounter)))
-#            if len(tupCounter)>0:
-#                wordCounter.update(tupCounter)
-#                hitCount = tupCounter.most_common(1)[0][1]
-#                print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-#                walkCounter(tupCounter, service, minHit, maxHit)
-#        tupSize-=1
-        
     if len(wordCounter)>0:
         walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
 
+    print("Adding bodies to search space")
+    wordList.extend(list(GetText(wl) for wl in bodyList))
+    wordCounter.clear
+    tupSize = maxTupleSize
+
+    tupSize = 5
+    while tupSize > 1:
+        # +1 count of all previous results
+        wordCounter.update(list(wordCounter))
+        tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+        if len(tuples)>0:
+            tupCounter = Counter(tuples)
+            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
+            hitCount = tupCounter.most_common(1)[0][1]
+            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+            print("Testing %d tuples"%len(tupCounter))
+            #walkCounter(tupCounter, service, minHit, maxHit, tooFew)
+        tupCount = len(tupCounter)
+        print("Tuple(%d): pass 1 = %d"%(tupSize,tupCount))
+        if tupCount>0:
+            tupCounter = Counter(tuples)
+            iterNum=0
+            tupRefCounter = Counter(tupCounter)
+            for el,v in tupRefCounter.items():
+                iterNum += 1
+                amtDone = iterNum/float(tupCount)
+                progBar(amtDone)
+                if v < minHit or v > maxHit:
+                    del tupCounter[el]   
+            print("\nTuple(%d): pass 2 = %d"%(tupSize,len(tupCounter)))
+            if len(tupCounter)>0:
+                wordCounter.update(tupCounter)
+                hitCount = tupCounter.most_common(1)[0][1]
+                print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+                walkCounter(tupCounter, service, minHit, maxHit, tooFew)
+        tupSize-=1
+        
 # Just load all messages
 showNTell(None)
