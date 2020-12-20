@@ -37,9 +37,9 @@ import re
 from collections import Counter
 
 # tweakable variables
-tooFew = 5
-tooMany = 60
-justRight = 30
+tooFew = 10
+tooMany = 50
+justRight = 25
 
 from lxml import html
 from lxml.html.clean import clean_html
@@ -218,6 +218,7 @@ def progBar(amtDone, msg="Progress"):
 
 def walkCounter(tupCounter, service, low, high, lowest):
     if tupCounter.most_common()[0][1] < lowest:
+        tupCounter.clear()
         return 
     tupCount = len(tupCounter)
     iterNum = 0
@@ -229,12 +230,12 @@ def walkCounter(tupCounter, service, low, high, lowest):
         if v >= lowest:
             realV = countMessagesWithTuple(k, service, 'me')
             #realV = v
-            if low <= realV <= high:
+            if low <= realV:
                 print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
-                showNTell(k)
-                break
-            elif realV == 0:
-                del tupCounter[k]
+                if realV <= high:
+                    showNTell(k)
+        else:
+            del tupCounter[k]
     
 # Setup the Gmail API
 SCOPES = 'https://www.googleapis.com/auth/gmail.readonly'
@@ -297,7 +298,7 @@ else:
     tupSize = maxTupleSize
     hitCount = 0
 
-    while tupSize > 1:
+    while tupSize > 0:
         # +1 count of all previous results
         wordCounter.update(list(wordCounter))
         tuples = make_tuples_from_list_of_lists(tupSize, wordList)
