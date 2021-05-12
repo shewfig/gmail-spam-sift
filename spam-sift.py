@@ -37,7 +37,7 @@ import re
 from collections import Counter
 
 # tweakable variables
-tooFew = 10
+tooFew = 5
 tooMany = 50
 justRight = 25
 
@@ -45,9 +45,12 @@ from lxml import html
 from lxml.html.clean import clean_html
 
 def strip_tags(payload):
-    if isinstance(payload, str) and len(payload)>0:
-        tree = html.fromstring(payload)
-        return str(clean_html(tree).text_content().strip())
+    if isinstance(payload, str) and len(payload)>1:
+        try:
+            tree = html.fromstring(payload)
+            return str(clean_html(tree).text_content().strip())
+        except:
+            pdb.set_trace()
     else:
         return str(payload) 
 
@@ -194,6 +197,7 @@ def showNTell(mChain):
     else:
         mUrl += "#spam"
     
+    print("URL: "+mUrl)
     webbrowser.open(url = mUrl, autoraise=True)
     exit(0)
 
@@ -234,6 +238,7 @@ def walkCounter(tupCounter, service, low, high, lowest):
                 print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
                 if realV <= high:
                     showNTell(k)
+            tupCounter[k]=realV
         else:
             del tupCounter[k]
     
@@ -267,13 +272,17 @@ else:
     if len(threads) < tooMany:
         tooMany = len(threads)
 
+    #maxTupleSize=int(len(threads) ** (1/3))
+    maxTupleSize=int((len(threads) ** (1/2)/2))
+    print("Max tuple size: "+str(maxTupleSize))
+
     # improve hit visual efficicency
     #justRight = min(justRight, len(threads)//2)
     #minHit = min(max(tooFew, tooFew + (abs(justRight - tooFew)//2)),len(threads))
     #maxHit = min(min(tooMany, tooMany - (abs(tooMany - justRight)//2)),len(threads))
     minHit = min((tooFew + tooFew + len(threads)//2)//3,justRight)
     maxHit = (tooMany + tooMany + len(threads)//2)//3
-    print("Low: "+str(minHit)+", High: "+str(maxHit))
+    print("Low: "+str(minHit)+", High: "+str(maxHit + (maxTupleSize ** 2)))
 
     # Try snippet list first, it's fast
     wordList = []
@@ -281,8 +290,6 @@ else:
         msgWords = list(GetText(thread_id['snippet']))
         #wordList.extend(msgWords)
         wordList.append(["can't" if x=="cant" else "don't" if x=="dont" else x for x in msgWords])
-
-    maxTupleSize=6
 
     # track it all
     wordCounter = Counter()
@@ -307,7 +314,7 @@ else:
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            walkCounter(tupCounter, service, minHit, maxHit, tooFew)
+            walkCounter(tupCounter, service, minHit, maxHit + (tupSize ** 2), tooFew)
         tupSize-=1
         
     if len(wordCounter)>0:
