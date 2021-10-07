@@ -314,7 +314,8 @@ else:
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            walkCounter(tupCounter, service, minHit, maxHit + (tupSize ** 2), tooFew)
+            if hitCount > (minHit - tupSize):
+                walkCounter(tupCounter, service, minHit, maxHit + (tupSize ** 2), tooFew)
         tupSize-=1
         
     if len(wordCounter)>0:
@@ -351,7 +352,6 @@ else:
         wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         hitCount = tupCounter.most_common(1)[0][1]
         print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-        walkCounter(tupCounter, service, minHit, maxHit, tooFew)
 
     if len(wordCounter)>0:
         walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
