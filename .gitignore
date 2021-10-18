@@ -1,5 +1,5 @@
-token.json
+client_secret.json
+credentials.json
 Pipfile
 Pipfile.lock
 .*.swp
-.DS_Store
