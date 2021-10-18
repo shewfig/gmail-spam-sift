@@ -3,3 +3,4 @@ credentials.json
 Pipfile
 Pipfile.lock
 .*.swp
+.DS_Store
