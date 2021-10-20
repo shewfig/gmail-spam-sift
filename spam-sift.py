@@ -248,7 +248,7 @@ def walkCounter(tupCounter, service, low, high, lowest):
             del tupCounter[k]
     
 # Setup the Gmail API
-SCOPES = 'https://www.googleapis.com/auth/gmail.readonly'
+SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
 #SCOPES = 'https://www.googleapis.com/auth/gmail.metadata'
 
 creds = None
