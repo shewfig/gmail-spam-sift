@@ -56,7 +56,8 @@ def strip_tags(payload):
             tree = html.fromstring(payload)
             return str(clean_html(tree).text_content().strip())
         except:
-            pdb.set_trace()
+            #pdb.set_trace()
+            return str(payload)
     else:
         return str(payload) 
 
