@@ -136,7 +136,8 @@ def unwrap(payload):
 
 def GetText(payload):
     text = strip_tags(payload)
-    wordlist = re.findall(r'[A-Za-z0-9\']+', text.lower())
+    #wordlist = re.findall(r'[A-Za-z0-9\']+', text.lower())
+    wordlist = text.lower().split()
     #pdb.set_trace()
     return wordlist
 
@@ -311,7 +312,7 @@ else:
     # Try snippet list first, it's fast
     wordList = []
     for thread_id in threads:
-        msgWords = list(GetText(thread_id['snippet']))
+        msgWords = GetText(thread_id['snippet'])
         #wordList.extend(msgWords)
         wordList.append(["can't" if x=="cant" else "don't" if x=="dont" else x for x in msgWords])
 
