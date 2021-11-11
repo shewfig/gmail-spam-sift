@@ -139,7 +139,7 @@ def GetText(payload):
     #wordlist = re.findall(r'[A-Za-z0-9\']+', text.lower())
     wordlist = text.lower().split()
     #pdb.set_trace()
-    return wordlist
+    return [ele for ele in wordlist if ele.encode('ascii', 'ignore').strip()]
 
 
 def cleanup_nltk_at_exit(nltkTmpDir):
@@ -188,15 +188,19 @@ def make_tuples_from_list_of_lists(size, corpus):
             thisTupList.clear()
             # make a list of all tuples (markhov chains)
             for i in range(len(thisList)-(size-1)):
-                thisTup = (' '.join(thisList[i + x] for x in range(size) if thisList[i+x] not in badList))
-                if len(thisTup.split()) == size:
-                    thisTupList.add(thisTup)
+                try:
+                    thisTup = (' '.join(thisList[i + x] for x in range(size) if thisList[i+x] not in badList))
+                    if len(thisTup.split()) == size:
+                        thisTupList.add(thisTup)
+                except:
+                    pdb.set_trace()
             # add per-message set of chains to the return list
             retList.extend(list(thisTupList))
     return retList
 
     
 def showNTell(mChain):
+    #pdb.set_trace()
     import webbrowser
     mUrl = "https://mail.google.com/mail/u/0/"
 
@@ -205,12 +209,13 @@ def showNTell(mChain):
     else:
         mUrl += "#spam"
     
-    print("URL: "+mUrl)
+    #print("URL: "+mUrl)
     webbrowser.open(url = mUrl, autoraise=True)
     exit(0)
 
 def countMessagesWithTuple(mChain, service, user_id='me'):
     if mChain is not None:
+      #query = "in:spam AND NOT(label:trash) AND \"" + str(mChain) + "\""
       query = "in:spam AND NOT(label:trash) AND " + str(mChain)
       try:
         response = service.users().threads().list(userId=user_id,
@@ -227,9 +232,9 @@ def progBar(amtDone, msg="Progress"):
     if amtDone == 1:
         print()
 
-
-def walkCounter(tupCounter, service, low, high, lowest):
+def cleanCounter(tupCounter, service, low, high, lowest):
     if tupCounter.most_common()[0][1] < lowest:
+        print("Max count: {0} < floor: {1}, deleting".format(tupCounter.most_common()[0][1],lowest))
         tupCounter.clear()
         return 
     tupCount = len(tupCounter)
@@ -239,16 +244,35 @@ def walkCounter(tupCounter, service, low, high, lowest):
         iterNum += 1
         amtDone = iterNum/float(tupCount)
         progBar(amtDone,msg)
-        if v >= lowest:
-            realV = countMessagesWithTuple(k, service, 'me')
-            #realV = v
-            if low <= realV:
-                print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
-                if realV <= high:
-                    showNTell(k)
-            tupCounter[k]=realV
-        else:
+        if v < lowest:
             del tupCounter[k]
+        else:
+            realV = countMessagesWithTuple(k, service, 'me')
+            if realV < 1:
+                del tupCounter[k]
+            elif low <= realV <= high:
+                print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
+                showNTell(k)
+            else:
+                tupCounter[k]=realV
+    walkCounter(tupCounter, low, high)
+
+def walkCounter(tupCounter, low, high):
+    tupCount = len(tupCounter)
+    iterNum = 0
+    msg="{2} Tuples: {0}-{1}".format(low,high,tupCount)
+    highest=0
+    for k, realV in tupCounter.most_common():
+        iterNum += 1
+        amtDone = iterNum/float(tupCount)
+        progBar(amtDone,msg)
+        if low <= realV:
+            if realV <= high:
+                print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
+                showNTell(k)
+            else:
+                highest = max(realV, highest)
+    print("\nMax hits: {hits}".format(hits=highest))
     
 # Setup the Gmail API
 SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
@@ -336,15 +360,18 @@ else:
         tuples = make_tuples_from_list_of_lists(tupSize, wordList)
         if len(tuples)>0:
             tupCounter = Counter(tuples)
-            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
             if hitCount > (minHit - tupSize):
-                walkCounter(wordCounter, service, minHit, maxHit + (tupSize ** 2), tooFew)
+                cleanCounter(tupCounter, service, minHit, max(maxHit + (tupSize ** 2), 95), tooFew)
+            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         tupSize-=1
+
+    # after this point, wordCounter should be "clean" and need no additional API hits
         
     if len(wordCounter)>0:
-        walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
+        #walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
+        walkCounter(wordCounter, tooFew, len(threads)//2)
 
     print("Loading " + str(len(threads)) + " messages.")
     subjList, bodyList = getThreadSubjects(service, 'me', threads)
@@ -362,11 +389,13 @@ else:
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            walkCounter(tupCounter, service, minHit, maxHit, tooFew)
+            cleanCounter(tupCounter, service, minHit, maxHit, tooFew)
+            #walkCounter(tupCounter, minHit, maxHit)
         tupSize-=1
         
     if len(wordCounter)>0:
-        walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
+        #walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
+        walkCounter(wordCounter, tooFew, len(threads)//2)
 
     tupSize=1
     # +1 count of all previous results
@@ -379,7 +408,8 @@ else:
         print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
 
     if len(wordCounter)>0:
-        walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
+        #walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
+        walkCounter(wordCounter, tooFew, len(threads)//2)
 
 #    print("Adding bodies to search space")
 #    wordList.extend(list(GetText(wl) for wl in bodyList))
