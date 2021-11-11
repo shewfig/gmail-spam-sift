@@ -340,7 +340,7 @@ else:
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
             if hitCount > (minHit - tupSize):
-                walkCounter(tupCounter, service, minHit, maxHit + (tupSize ** 2), tooFew)
+                walkCounter(wordCounter, service, minHit, maxHit + (tupSize ** 2), tooFew)
         tupSize-=1
         
     if len(wordCounter)>0:
