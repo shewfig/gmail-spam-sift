@@ -240,6 +240,7 @@ def cleanCounter(tupCounter, service, low, high, lowest):
     tupCount = len(tupCounter)
     iterNum = 0
     msg="{2} Tuples: {0}-{1}".format(low,high,tupCount)
+    highest=0
     for k, v in tupCounter.most_common():
         iterNum += 1
         amtDone = iterNum/float(tupCount)
@@ -248,6 +249,7 @@ def cleanCounter(tupCounter, service, low, high, lowest):
             del tupCounter[k]
         else:
             realV = countMessagesWithTuple(k, service, 'me')
+            highest = max(realV, highest)
             if realV < 1:
                 del tupCounter[k]
             elif low <= realV <= high:
@@ -255,13 +257,13 @@ def cleanCounter(tupCounter, service, low, high, lowest):
                 showNTell(k)
             else:
                 tupCounter[k]=realV
-    walkCounter(tupCounter, low, high)
+    print("\nMax hits: {hits}".format(hits=highest))
+    #walkCounter(tupCounter, low, high)
 
 def walkCounter(tupCounter, low, high):
     tupCount = len(tupCounter)
     iterNum = 0
     msg="{2} Tuples: {0}-{1}".format(low,high,tupCount)
-    highest=0
     for k, realV in tupCounter.most_common():
         iterNum += 1
         amtDone = iterNum/float(tupCount)
@@ -270,9 +272,6 @@ def walkCounter(tupCounter, low, high):
             if realV <= high:
                 print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
                 showNTell(k)
-            else:
-                highest = max(realV, highest)
-    print("\nMax hits: {hits}".format(hits=highest))
     
 # Setup the Gmail API
 SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
@@ -362,7 +361,7 @@ else:
             tupCounter = Counter(tuples)
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            if hitCount > (minHit - tupSize):
+            if hitCount > max(tooFew, (minHit - (tupSize * 2))):
                 cleanCounter(tupCounter, service, minHit, max(maxHit + (tupSize ** 2), 95), tooFew)
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         tupSize-=1
@@ -380,33 +379,18 @@ else:
     wordCounter.clear
     tupSize = maxTupleSize
 
-    while tupSize > 1:
+    while tupSize > 0:
         # +1 count of all previous results
         wordCounter.update(list(wordCounter))
         tuples = make_tuples_from_list_of_lists(tupSize, wordList)
         if len(tuples)>0:
             tupCounter = Counter(tuples)
-            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
             cleanCounter(tupCounter, service, minHit, maxHit, tooFew)
-            #walkCounter(tupCounter, minHit, maxHit)
+            wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         tupSize-=1
         
-    if len(wordCounter)>0:
-        #walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
-        walkCounter(wordCounter, tooFew, len(threads)//2)
-
-    tupSize=1
-    # +1 count of all previous results
-    wordCounter.update(list(wordCounter))
-    tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-    if len(tuples)>0:
-        tupCounter = Counter(tuples)
-        wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
-        hitCount = tupCounter.most_common(1)[0][1]
-        print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-
     if len(wordCounter)>0:
         #walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
         walkCounter(wordCounter, tooFew, len(threads)//2)
