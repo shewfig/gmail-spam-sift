@@ -360,9 +360,10 @@ else:
         if len(tuples)>0:
             tupCounter = Counter(tuples)
             hitCount = tupCounter.most_common(1)[0][1]
-            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            if hitCount > max(tooFew, (minHit - (tupSize * 2))):
-                cleanCounter(tupCounter, service, max(tooFew, (minHit - (tupSize * 2))), max(maxHit + (tupSize ** 2), min(95,maxHit)), tooFew)
+            thisMinHit = (minHit - tupSize)
+            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(thisMinHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+            if hitCount > max(tooFew, thisMinHit - tupSize):
+                cleanCounter(tupCounter, service, max(tooFew, thisMinHit), max(maxHit + (tupSize ** 2), min(95,maxHit)), tooFew)
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         tupSize-=1
 
