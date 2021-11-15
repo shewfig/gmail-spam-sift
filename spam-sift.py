@@ -45,7 +45,7 @@ from collections import Counter
 # tweakable variables
 tooFew = 5
 tooMany = 50
-justRight = 25
+justRight = 34
 
 from lxml import html
 from lxml.html.clean import clean_html
@@ -136,8 +136,8 @@ def unwrap(payload):
 
 def GetText(payload):
     text = strip_tags(payload)
-    #wordlist = re.findall(r'[A-Za-z0-9\']+', text.lower())
-    wordlist = text.lower().split()
+    wordlist = re.findall(r'[A-Za-z0-9\']+', text.lower())
+    #wordlist = text.lower().split()
     #pdb.set_trace()
     return [ele for ele in wordlist if ele.encode('ascii', 'ignore').strip()]
 
@@ -362,7 +362,7 @@ else:
             hitCount = tupCounter.most_common(1)[0][1]
             print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
             if hitCount > max(tooFew, (minHit - (tupSize * 2))):
-                cleanCounter(tupCounter, service, minHit, max(maxHit + (tupSize ** 2), 95), tooFew)
+                cleanCounter(tupCounter, service, max(tooFew, (minHit - (tupSize * 2))), max(maxHit + (tupSize ** 2), min(95,maxHit)), tooFew)
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         tupSize-=1
 
