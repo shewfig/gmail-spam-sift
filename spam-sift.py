@@ -353,25 +353,24 @@ else:
     tupSize = maxTupleSize
     hitCount = 0
 
-    while tupSize > 0:
+    while tupSize > 1:
         # +1 count of all previous results
         wordCounter.update(list(wordCounter))
         tuples = make_tuples_from_list_of_lists(tupSize, wordList)
         if len(tuples)>0:
             tupCounter = Counter(tuples)
             hitCount = tupCounter.most_common(1)[0][1]
-            thisMinHit = (minHit - tupSize)
-            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(thisMinHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            if hitCount > max(tooFew, thisMinHit - tupSize):
-                cleanCounter(tupCounter, service, max(tooFew, thisMinHit), max(maxHit + (tupSize ** 2), min(95,maxHit)), tooFew)
+            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
+            #if hitCount > max(tooFew, (minHit - (tupSize * 2))):
+            #    cleanCounter(tupCounter, service, minHit, max(maxHit + (tupSize ** 2), 95), tooFew)
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         tupSize-=1
 
     # after this point, wordCounter should be "clean" and need no additional API hits
         
     if len(wordCounter)>0:
-        #walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
-        walkCounter(wordCounter, tooFew, len(threads)//2)
+        cleanCounter(wordCounter, service, minHit, max(maxHit, 95), tooFew)
+        #walkCounter(wordCounter, tooFew, len(threads)//2)
 
     print("Loading " + str(len(threads)) + " messages.")
     subjList, bodyList = getThreadSubjects(service, 'me', threads)
