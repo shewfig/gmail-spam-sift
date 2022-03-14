@@ -144,33 +144,11 @@ def GetText(payload):
     return [ele for ele in wordlist if ele.encode('ascii', 'ignore').strip()]
 
 
-def cleanup_nltk_at_exit(nltkTmpDir):
-    # some basic sanity, but /shrug
-    if len(nltkTmpDir) > 4 and not nltkTmpDir.endswith('/'):
-        print("Cleaning up downloaded file(s)")
-        from shutil import rmtree
-        rmtree(nltkTmpDir)
-
 
 def make_tuples_from_list_of_lists(size, corpus):
     retList = []
     badList = ['http', 'href', 'html', 'www', 'com', 's', 't', 'gmail', 'hi', 'doctype', 'w3c', 'dtd', 'https']
     if size < 2:
-        try:
-            from nltk.corpus import stopwords
-            stop_words = list(stopwords.words('english'))
-            badList.extend(stop_words)
-        except:
-            import atexit
-            import nltk
-            from tempfile import mkdtemp
-            nltkTmpDir = mkdtemp()
-            nltk.data.path = [ nltkTmpDir ]
-            nltkDl = nltk.downloader.Downloader(download_dir=nltkTmpDir)
-            nltkDl.download(info_or_id='stopwords')
-            stop_words = list(stopwords.words('english'))
-            atexit.register(cleanup_nltk_at_exit, nltkTmpDir)
-            badList.extend(stop_words)
 
         # create a set per message to get unique words for that message
         # then add each set to list so Counter will count messages
