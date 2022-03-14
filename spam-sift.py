@@ -33,6 +33,8 @@ import google.auth.exceptions
 from httplib2 import Http
 from oauth2client import file, client, tools
 
+from wordfreq import zipf_frequency, tokenize
+
 import sys
 import pdb
 import base64
@@ -272,6 +274,9 @@ def walkCounter(tupCounter, low, high):
             if realV <= high:
                 print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
                 showNTell(k)
+
+def getTupScore(tup, commonList=[]):
+    return sum(zipf_frequency(term, 'en') if term not in commonList else 3 for term in tokenize(tup, 'en')) // len(tokenize(tup, 'en'))
     
 # Setup the Gmail API
 SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
@@ -360,9 +365,16 @@ else:
         if len(tuples)>0:
             tupCounter = Counter(tuples)
             hitCount = tupCounter.most_common(1)[0][1]
-            print("Tuple("+str(tupSize)+"): "+str(hitCount)+"/"+str(minHit)+" \""+tupCounter.most_common(1)[0][0]+"\"")
-            #if hitCount > max(tooFew, (minHit - (tupSize * 2))):
-            #    cleanCounter(tupCounter, service, minHit, max(maxHit + (tupSize ** 2), 95), tooFew)
+
+            for tup in tupCounter:
+                tupCounter[tup] *= getTupScore(tup, commonList=tokenize(useraddr, 'en'))
+
+            try:
+                print("Tuple({tupSize}): {hitCount}/{minHit} \"{mcword}\"({tscore})"\
+                        .format(tupSize=tupSize, hitCount=hitCount, minHit=minHit, \
+                        mcword=tupCounter.most_common(1)[0][0], tscore=tupCounter.most_common(1)[0][1]))
+            except:
+                breakpoint()
             wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
         tupSize-=1
 
