@@ -254,7 +254,7 @@ def walkCounter(tupCounter, low, high):
                 showNTell(k)
 
 def getTupScore(tup, commonList=[]):
-    return sum(zipf_frequency(term, 'en') if term not in commonList else 3 for term in tokenize(tup, 'en')) // len(tokenize(tup, 'en'))
+    return sum(zipf_frequency(term, 'en') if term not in commonList else 5 for term in tokenize(tup, 'en') // len(tokenize(tup, 'en'))))
     
 # Setup the Gmail API
 SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
@@ -348,7 +348,7 @@ else:
                 tupCounter[tup] *= getTupScore(tup, commonList=tokenize(useraddr, 'en'))
 
             try:
-                print("Tuple({tupSize}): {hitCount}/{minHit} \"{mcword}\"({tscore})"\
+                print("Tuple({tupSize}): {hitCount}/{minHit} \"{mcword}\" ({tscore})"\
                         .format(tupSize=tupSize, hitCount=hitCount, minHit=minHit, \
                         mcword=tupCounter.most_common(1)[0][0], tscore=tupCounter.most_common(1)[0][1]))
             except:
