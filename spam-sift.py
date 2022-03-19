@@ -229,6 +229,7 @@ def cleanCounter(tupCounter, service, low, high, lowest):
             del tupCounter[k]
         else:
             realV = countMessagesWithTuple(k, service, 'me')
+            #print("[{0} ({1})]: {2}".format(v, realV, k))
             highest = max(realV, highest)
             if realV < 1:
                 del tupCounter[k]
@@ -254,7 +255,7 @@ def walkCounter(tupCounter, low, high):
                 showNTell(k)
 
 def getTupScore(tup, commonList=[]):
-    return sum(zipf_frequency(term, 'en') if term not in commonList else 5 for term in tokenize(tup, 'en') // len(tokenize(tup, 'en'))))
+    return round(sum((7 - zipf_frequency(term, 'en')) if term not in commonList else 2 for term in tokenize(tup, 'en')))
     
 # Setup the Gmail API
 SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
@@ -345,7 +346,7 @@ else:
             hitCount = tupCounter.most_common(1)[0][1]
 
             for tup in tupCounter:
-                tupCounter[tup] *= getTupScore(tup, commonList=tokenize(useraddr, 'en'))
+                tupCounter[tup] *= (getTupScore(tup, commonList=[tokenize(useraddr, 'en'),'unsubscribe']))
 
             try:
                 print("Tuple({tupSize}): {hitCount}/{minHit} \"{mcword}\" ({tscore})"\
