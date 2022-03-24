@@ -179,10 +179,10 @@ def make_tuples_from_list_of_lists(size, corpus):
     return retList
 
     
-def showNTell(mChain):
+def showNTell(mChain, emailAddr=None):
     #pdb.set_trace()
     import webbrowser
-    mUrl = "https://mail.google.com/mail/u/0/"
+    mUrl = "https://mail.google.com/mail{authstr}".format(authstr="/u/0/" if emailAddr is None else "?authuser="+emailAddr)
 
     if mChain is not None:
         mUrl += "#search/in%3Aspam+" + str(mChain).replace(" ","+")
@@ -235,13 +235,13 @@ def cleanCounter(tupCounter, service, low, high, lowest):
                 del tupCounter[k]
             elif low <= realV <= high:
                 print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
-                showNTell(k)
+                showNTell(k, str(getUserAddress(service, 'me')))
             else:
                 tupCounter[k]=realV
     print("\nMax hits: {hits}".format(hits=highest))
     #walkCounter(tupCounter, low, high)
 
-def walkCounter(tupCounter, low, high):
+def walkCounter(tupCounter, service, low, high):
     tupCount = len(tupCounter)
     iterNum = 0
     msg="{2} Tuples: {0}-{1}".format(low,high,tupCount)
@@ -252,7 +252,7 @@ def walkCounter(tupCounter, low, high):
         if low <= realV:
             if realV <= high:
                 print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
-                showNTell(k)
+                showNTell(k, str(getUserAddress(service, 'me')))
 
 def getTupScore(tup, commonList=[]):
     return round(sum((7 - zipf_frequency(term, 'en')) if term not in commonList else 2 for term in tokenize(tup, 'en')))
@@ -384,7 +384,7 @@ else:
         
     if len(wordCounter)>0:
         #walkCounter(wordCounter, service, tooFew, len(threads)//2, tooFew)
-        walkCounter(wordCounter, tooFew, len(threads)//2)
+        walkCounter(wordCounter, service, tooFew, len(threads)//2)
 
 #    print("Adding bodies to search space")
 #    wordList.extend(list(GetText(wl) for wl in bodyList))
@@ -424,4 +424,4 @@ else:
 #        tupSize-=1
         
 # Just load all messages
-showNTell(None)
+showNTell(None, useraddr)
