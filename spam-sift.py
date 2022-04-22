@@ -298,7 +298,7 @@ else:
         tooMany = len(threads)
 
     #maxTupleSize=int(len(threads) ** (1/3))
-    maxTupleSize=int((len(threads) ** (1/2)/2))
+    maxTupleSize=min(int((len(threads) ** (1/2)/2)),6)
     print("Max tuple size: "+str(maxTupleSize))
 
     # improve hit visual efficicency
@@ -353,7 +353,7 @@ else:
                             mcword=tupCounter.most_common(1)[0][0], tscore=tupCounter.most_common(1)[0][1]))
                 except:
                     breakpoint()
-                wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > tooFew)))
+                wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > 1)))
             tupSize-=1
 
         # after this point, wordCounter should be "clean" and need no additional API hits
