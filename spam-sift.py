@@ -141,35 +141,43 @@ def GetText(payload):
 
 def make_tuples_from_list_of_lists(size, corpus):
     retList = []
-    badList = ['http', 'href', 'html', 'www', 'com', 's', 't', 'gmail', 'hi', 'doctype', 'w3c', 'dtd', 'https']
-    if size < 2:
+    badList = ['http', 'href', 'html', 'www', 'com', 's', 't', 'gmail', 'hi', 'doctype', 'w3c', 'dtd', 'https', 'font', '_']
 
-        # create a set per message to get unique words for that message
-        # then add each set to list so Counter will count messages
-        if size == 1:
-            for thisList in corpus:
+    thisTupList = set()
+    for thisList in corpus:
+        if (type(thisList) is not list) or (len(thisList) == 0) or (len(thisList) < size):
+            next
+        else:
+            #print(str(thisList))
+
+            # turn each message into a set to de-dupe words w/in message and count instances across messsages
+            if size == 1:
                 retList.extend(set(w for w in thisList if w not in badList))
 
-        # tupsize 0: return all of the common words previously excluded
-        elif size == 0:
-            for thisList in corpus:
+            # tupsize 0: return all of the common words previously excluded
+            elif size == 0:
                 retList.extend(set(w for w in thisList if w in badList))
 
-    else:
-        thisTupList = set()
-        for thisList in corpus:
-            # create a set per message to get unique tuples for that message
-            thisTupList.clear()
-            # make a list of all tuples (markhov chains)
-            for i in range(len(thisList)-(size-1)):
-                try:
-                    thisTup = (' '.join(str(thisList[i + x]) for x in range(size) if str(thisList[i+x]) not in badList))
-                    if len(thisTup.split()) == size:
-                        thisTupList.add(thisTup)
-                except:
-                    breakpoint()
-            # add per-message set of chains to the return list
-            retList.extend(list(thisTupList))
+            else:
+                # create a set per message to get unique tuples for that message
+                thisTupList.clear()
+                # make a list of all tuples (markhov chains)
+                for i in range(len(thisList)-(size-1)):
+                    try:
+                        thisTup = [str(thisList[i + x]) for x in range(size) if str(thisList[i+x]) not in badList and len(str(thisList[i+x]))>0]
+                        if len(thisTup) != size:
+                            next
+                        elif len(max(thisTup, key=len)) == 1:
+                            thisTupStr = ''.join(thisTup)
+                            #breakpoint()
+                        else:
+                            thisTupStr = ' '.join(thisTup)
+                        thisTupList.add(thisTupStr)
+                        #print("Adding: "+thisTupStr)
+                    except:
+                        breakpoint()
+                # add per-message set of chains to the return list
+                retList.extend(list(thisTupList))
     return retList
 
     
@@ -335,7 +343,7 @@ else:
         tupSize = maxTupleSize
         hitCount = 0
 
-        while tupSize > 1:
+        while tupSize > 0:
             # +1 count of all previous results
             # DISABLED because rareness provides the bias now
             # wordCounter.update(list(wordCounter))
@@ -345,12 +353,12 @@ else:
                 hitCount = tupCounter.most_common(1)[0][1]
 
                 for tup in tupCounter:
-                    tupCounter[tup] *= (getTupScore(tup, commonList=[tokenize(useraddr, 'en'),'unsubscribe'])) if tupCounter[tup] >= tooFew else 0
+                    tupCounter[tup] = (getTupScore(tup, commonList=[tokenize(useraddr, 'en'),'unsubscribe','click'])) if tupCounter[tup] >= tooFew else 0
 
                 try:
                     print("Tuple({tupSize}): {hitCount}/{minHit} \"{mcword}\" ({tscore})"\
-                            .format(tupSize=tupSize, hitCount=hitCount, minHit=minHit, \
-                            mcword=tupCounter.most_common(1)[0][0], tscore=tupCounter.most_common(1)[0][1]))
+                        .format(tupSize=tupSize, hitCount=hitCount, minHit=minHit, \
+                        mcword=tupCounter.most_common(1)[0][0], tscore=tupCounter.most_common(1)[0][1]))
                 except:
                     breakpoint()
                 wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > 1)))
