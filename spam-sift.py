@@ -141,7 +141,6 @@ def GetText(payload):
 
 def make_tuples_from_list_of_lists(size, corpus):
     retList = []
-    badList = ['http', 'href', 'html', 'www', 'com', 's', 't', 'gmail', 'hi', 'doctype', 'w3c', 'dtd', 'https', 'font', '_']
 
     thisTupList = set()
     for thisList in corpus:
@@ -152,11 +151,7 @@ def make_tuples_from_list_of_lists(size, corpus):
 
             # turn each message into a set to de-dupe words w/in message and count instances across messsages
             if size == 1:
-                retList.extend(set(w for w in thisList if w not in badList))
-
-            # tupsize 0: return all of the common words previously excluded
-            elif size == 0:
-                retList.extend(set(w for w in thisList if w in badList))
+                retList.extend(set(thisList))
 
             else:
                 # create a set per message to get unique tuples for that message
@@ -164,7 +159,7 @@ def make_tuples_from_list_of_lists(size, corpus):
                 # make a list of all tuples (markhov chains)
                 for i in range(len(thisList)-(size-1)):
                     try:
-                        thisTup = [str(thisList[i + x]) for x in range(size) if str(thisList[i+x]) not in badList and len(str(thisList[i+x]))>0]
+                        thisTup = [str(thisList[i + x]) for x in range(size)]
                         if len(thisTup) != size:
                             next
                         elif len(max(thisTup, key=len)) == 1:
