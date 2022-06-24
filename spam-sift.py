@@ -44,7 +44,7 @@ import re
 from collections import Counter
 
 # tweakable variables
-tooFew = 5
+absoluteMin = 5
 tooMany = 50
 justRight = 34
 
@@ -225,14 +225,25 @@ def cleanCounter(tupCounter, service, low, high, lowest):
             del tupCounter[k]
         else:
             realV = countMessagesWithTuple(k, service, 'me')
-            #print("[{0} ({1})]: {2}".format(v, realV, k))
+            thisRare = getTupScore(k)
+            thisLow = (low - thisRare)
+            thisHigh = (high + thisRare)
+            thisV = realV
             highest = max(realV, highest)
             if realV < 1:
                 del tupCounter[k]
-            elif low <= realV <= high:
+            elif thisLow <= thisV <= thisHigh:
                 print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
                 showNTell(k, str(getUserAddress(service, 'me')))
             else:
+                #"""
+                print("[{fakeIn}: {low} < {val} < {high}]: {term}"\
+                    .format(\
+                    low=thisLow, high=thisHigh,\
+                    fakeIn=v, val=thisV,\
+                    term=k \
+                    ))
+                #"""
                 tupCounter[k]=realV
     print("\nMax hits: {hits}".format(hits=highest))
     #walkCounter(tupCounter, low, high)
@@ -250,8 +261,8 @@ def walkCounter(tupCounter, service, low, high):
                 print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
                 showNTell(k, str(getUserAddress(service, 'me')))
 
-def getTupScore(tup, commonList=[]):
-    return round(sum((7 - zipf_frequency(term, 'en')) if term not in commonList else 2 for term in tokenize(tup, 'en')))
+def getTupScore(tup, commonList=['unsubscribe','click']):
+    return round(sum(7 - (zipf_frequency(term, 'en') if term not in commonList else 6) for term in tokenize(tup, 'en'))*5)
     
 # Setup the Gmail API
 SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
@@ -291,7 +302,7 @@ threads = ListThreadsWithLabels(service, 'me', 'SPAM')
 if len(threads) == 0:
     print("No messages found")
     exit(0)
-elif len(threads) < tooFew:
+elif len(threads) < absoluteMin:
     print("Only "+str(len(threads))+" messages")
 
 else:
@@ -306,11 +317,11 @@ else:
 
     # improve hit visual efficicency
     #justRight = min(justRight, len(threads)//2)
-    #minHit = min(max(tooFew, tooFew + (abs(justRight - tooFew)//2)),len(threads))
+    #localMin = min(max(absoluteMin, absoluteMin + (abs(justRight - absoluteMin)//2)),len(threads))
     #maxHit = min(min(tooMany, tooMany - (abs(tooMany - justRight)//2)),len(threads))
-    minHit = min((tooFew + tooFew + len(threads)//2)//3,justRight)
+    localMin = min((absoluteMin + absoluteMin + len(threads)//2)//3,justRight)
     maxHit = (tooMany + tooMany + len(threads)//2)//3
-    print("Low: "+str(minHit)+", High: "+str(maxHit + (maxTupleSize ** 2)))
+    print("Low: "+str(localMin)+", High: "+str(maxHit + (maxTupleSize ** 2)))
 
     # Try snippet list first, it's fast
     wordList = []
@@ -348,11 +359,15 @@ else:
                 hitCount = tupCounter.most_common(1)[0][1]
 
                 for tup in tupCounter:
-                    tupCounter[tup] = (getTupScore(tup, commonList=[tokenize(useraddr, 'en'),'unsubscribe','click'])) if tupCounter[tup] >= tooFew else 0
+                    tupCounter[tup] *= \
+                        ( \
+                        getTupScore(tup,commonList=[tokenize(useraddr, 'en'),'unsubscribe','click']) \
+                        if tupCounter[tup] >= absoluteMin else 0 \
+                        ) 
 
                 try:
-                    print("Tuple({tupSize}): {hitCount}/{minHit} \"{mcword}\" ({tscore})"\
-                        .format(tupSize=tupSize, hitCount=hitCount, minHit=minHit, \
+                    print("Tuple({tupSize}): {hitCount}/{localMin} \"{mcword}\" ({tscore})"\
+                        .format(tupSize=tupSize, hitCount=hitCount, localMin=localMin, \
                         mcword=tupCounter.most_common(1)[0][0], tscore=tupCounter.most_common(1)[0][1]))
                 except:
                     breakpoint()
@@ -362,8 +377,8 @@ else:
         # after this point, wordCounter should be "clean" and need no additional API hits
             
         if len(wordCounter)>0:
-            cleanCounter(wordCounter, service, minHit, max(maxHit, 95), tooFew)
-            #walkCounter(wordCounter, tooFew, len(threads)//2)
+            cleanCounter(wordCounter, service, localMin, max(maxHit, 95), absoluteMin)
+            #walkCounter(wordCounter, absoluteMin, len(threads)//2)
 
         if scope == "snippets":
             print("Loading " + str(len(threads)) + " messages.")
