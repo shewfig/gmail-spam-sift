@@ -30,17 +30,12 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 import google.auth.exceptions
 
-from httplib2 import Http
-from oauth2client import file, client, tools
-
 from wordfreq import zipf_frequency, tokenize
 
 import sys
 import base64
-import email
 from googleapiclient import errors
 
-import re
 from collections import Counter
 
 # tweakable variables
