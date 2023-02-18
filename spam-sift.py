@@ -38,11 +38,6 @@ from googleapiclient import errors
 
 from collections import Counter
 
-# tweakable variables
-absoluteMin = 5
-tooMany = 50
-justRight = 34
-
 from lxml import html
 from lxml.html.clean import clean_html
 
@@ -180,7 +175,7 @@ def showNTell(mChain, emailAddr=None):
     else:
         mUrl += "#spam"
     
-    #print("URL: "+mUrl)
+    print("URL: "+mUrl)
     webbrowser.open(url = mUrl, autoraise=True)
     exit(0)
 
@@ -218,6 +213,10 @@ def cleanCounter(tupCounter, service, low, high, lowest):
         progBar(amtDone,msg)
         if v < lowest:
             del tupCounter[k]
+        elif k == str(getUserAddress(service, 'me')).split('@')[0] \
+                or k == str(getUserAddress(service, 'me')).replace('@', ' '):
+                    print("\nKeyword is username({keyword}), skipping"\
+                            .format(keyword=k))
         else:
             realV = countMessagesWithTuple(k, service, 'me')
             thisRare = getTupScore(k)
@@ -232,7 +231,7 @@ def cleanCounter(tupCounter, service, low, high, lowest):
                 showNTell(k, str(getUserAddress(service, 'me')))
             else:
                 #"""
-                print("[{fakeIn}: {low} < {val} < {high}]: {term}"\
+                print("\n[{fakeIn}: {low} < {val} < {high}]: {term}"\
                     .format(\
                     low=thisLow, high=thisHigh,\
                     fakeIn=v, val=thisV,\
@@ -259,140 +258,148 @@ def walkCounter(tupCounter, service, low, high):
 def getTupScore(tup, commonList=['unsubscribe','click']):
     return round(sum(7 - (zipf_frequency(term, 'en') if term not in commonList else 6) for term in tokenize(tup, 'en'))*5)
     
-# Setup the Gmail API
-SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
-#SCOPES = 'https://www.googleapis.com/auth/gmail.metadata'
+if __name__ == '__main__':
+    # Running as the main program ...
 
-creds = None
-# The file token.json stores the user's access and refresh tokens, and is
-# created automatically when the authorization flow completes for the first
-# time.
-if os.path.exists('token.json'):
-    creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-# If there are no (valid) credentials available, let the user log in.
-if creds and creds.expired and creds.refresh_token:
-    try:
-        creds.refresh(Request())
-    except google.auth.exceptions.RefreshError as error:
-        print('Refresh error: %s' % error)
-        creds = None
-if not creds or not creds.valid:
-    flow = InstalledAppFlow.from_client_secrets_file(
-            'credentials.json', SCOPES)
-    creds = flow.run_local_server(port=0)
-# Save the credentials for the next run
-with open('token.json', 'w') as token:
-    token.write(creds.to_json())
+    # tweakable variables
+    absoluteMin = 5
+    tooMany = 50
+    justRight = 34
 
-service = build('gmail', 'v1', credentials=creds)
+    # Setup the Gmail API
+    SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
+    #SCOPES = 'https://www.googleapis.com/auth/gmail.metadata'
 
-print("Getting user info")
-useraddr = str(getUserAddress(service, 'me'))
-print("User address = "+useraddr)
+    creds = None
+    # The file token.json stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    # If there are no (valid) credentials available, let the user log in.
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+        except google.auth.exceptions.RefreshError as error:
+            print('Refresh error: %s' % error)
+            creds = None
+    if not creds or not creds.valid:
+        flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+        creds = flow.run_local_server(port=0)
+    # Save the credentials for the next run
+    with open('token.json', 'w') as token:
+        token.write(creds.to_json())
 
-print("Loading message snippets")
-threads = ListThreadsWithLabels(service, 'me', 'SPAM')
+    service = build('gmail', 'v1', credentials=creds)
 
-# optimize: only analyze if there are enough messages
-if len(threads) == 0:
-    print("No messages found")
-    exit(0)
-elif len(threads) < absoluteMin:
-    print("Only "+str(len(threads))+" messages")
+    print("Getting user info")
+    useraddr = str(getUserAddress(service, 'me'))
+    print("User address = "+useraddr)
 
-else:
-    print("Found "+str(len(threads))+" messages")
+    print("Loading message snippets")
+    threads = ListThreadsWithLabels(service, 'me', 'SPAM')
 
-    if len(threads) < tooMany:
-        tooMany = len(threads)
+    # optimize: only analyze if there are enough messages
+    if len(threads) == 0:
+        print("No messages found")
+        exit(0)
+    elif len(threads) < absoluteMin:
+        print("Only "+str(len(threads))+" messages")
 
-    #maxTupleSize=int(len(threads) ** (1/3))
-    maxTupleSize=min(int((len(threads) ** (1/2)/2)),6)
-    print("Max tuple size: "+str(maxTupleSize))
+    else:
+        print("Found "+str(len(threads))+" messages")
 
-    # improve hit visual efficicency
-    #justRight = min(justRight, len(threads)//2)
-    #localMin = min(max(absoluteMin, absoluteMin + (abs(justRight - absoluteMin)//2)),len(threads))
-    #maxHit = min(min(tooMany, tooMany - (abs(tooMany - justRight)//2)),len(threads))
-    localMin = min((absoluteMin + absoluteMin + len(threads)//2)//3,justRight)
-    maxHit = (tooMany + tooMany + len(threads)//2)//3
-    print("Low: "+str(localMin)+", High: "+str(maxHit + (maxTupleSize ** 2)))
+        if len(threads) < tooMany:
+            tooMany = len(threads)
 
-    # Try snippet list first, it's fast
-    wordList = []
-    for thread_id in threads:
-        msgWords = GetText(thread_id['snippet'])
-        #wordList.extend(msgWords)
-        # wordList.append(["can't" if x=="cant" else "don't" if x=="dont" else x for x in msgWords])
-        wordList.append(msgWords)
+        #maxTupleSize=int(len(threads) ** (1/3))
+        maxTupleSize=min(int((len(threads) ** (1/2)/2)),6)
+        print("Max tuple size: "+str(maxTupleSize))
 
-    # track it all
-    wordCounter = Counter()
+        # improve hit visual efficicency
+        #justRight = min(justRight, len(threads)//2)
+        #localMin = min(max(absoluteMin, absoluteMin + (abs(justRight - absoluteMin)//2)),len(threads))
+        #maxHit = min(min(tooMany, tooMany - (abs(tooMany - justRight)//2)),len(threads))
+        localMin = min((absoluteMin + absoluteMin + len(threads)//2)//3,justRight)
+        maxHit = (tooMany + tooMany + len(threads)//2)//3
+        print("Low: "+str(localMin)+", High: "+str(maxHit + (maxTupleSize ** 2)))
 
-    # Test multi-word combos in decreasing length until:
-    # Happy: there's a common enough result
-    # Unhappy: we're going word by word
-    # prime the loop
-    # loop
+        # Try snippet list first, it's fast
+        wordList = []
+        for thread_id in threads:
+            msgWords = GetText(thread_id['snippet'])
+            #wordList.extend(msgWords)
+            # wordList.append(["can't" if x=="cant" else "don't" if x=="dont" else x for x in msgWords])
+            wordList.append(msgWords)
 
-    subjList = None
-    bodyList = None
+        # track it all
+        wordCounter = Counter()
 
-    for scope in ['snippets','subjects','bodies']:
-        print("Now parsing: "+scope)
+        # Test multi-word combos in decreasing length until:
+        # Happy: there's a common enough result
+        # Unhappy: we're going word by word
+        # prime the loop
+        # loop
 
-        tupSize = maxTupleSize
-        hitCount = 0
+        subjList = None
+        bodyList = None
 
-        while tupSize > 0:
-            # +1 count of all previous results
-            # DISABLED because rareness provides the bias now
-            # wordCounter.update(list(wordCounter))
-            tuples = make_tuples_from_list_of_lists(tupSize, wordList)
-            if len(tuples)>0:
-                tupCounter = Counter(tuples)
-                hitCount = tupCounter.most_common(1)[0][1]
+        for scope in ['snippets','subjects','bodies']:
+            print("Now parsing: "+scope)
 
-                for tup in tupCounter:
-                    tupCounter[tup] *= \
-                        ( \
-                        getTupScore(tup,commonList=[tokenize(useraddr, 'en'),'unsubscribe','click']) \
-                        if tupCounter[tup] >= absoluteMin else 0 \
-                        ) 
+            tupSize = maxTupleSize
+            hitCount = 0
 
-                try:
-                    print("Tuple({tupSize}): {hitCount}/{localMin} \"{mcword}\" ({tscore})"\
-                        .format(tupSize=tupSize, hitCount=hitCount, localMin=localMin, \
-                        mcword=tupCounter.most_common(1)[0][0], tscore=tupCounter.most_common(1)[0][1]))
-                except:
-                    breakpoint()
-                wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > 1)))
-            tupSize-=1
+            while tupSize > 0:
+                # +1 count of all previous results
+                # DISABLED because rareness provides the bias now
+                # wordCounter.update(list(wordCounter))
+                tuples = make_tuples_from_list_of_lists(tupSize, wordList)
+                if len(tuples)>0:
+                    tupCounter = Counter(tuples)
+                    hitCount = tupCounter.most_common(1)[0][1]
 
-        # after this point, wordCounter should be "clean" and need no additional API hits
-            
-        if len(wordCounter)>0:
-            cleanCounter(wordCounter, service, localMin, max(maxHit, 95), absoluteMin)
-            #walkCounter(wordCounter, absoluteMin, len(threads)//2)
+                    for tup in tupCounter:
+                        tupCounter[tup] *= \
+                            ( \
+                            getTupScore(tup,commonList=[tokenize(useraddr, 'en'),'unsubscribe','click']) \
+                            if tupCounter[tup] >= absoluteMin else 0 \
+                            ) 
 
-        if scope == "snippets":
-            print("Loading " + str(len(threads)) + " messages.")
-            subjList, bodyList = getThreadSubjects(service, 'me', threads)
-            #print("Adding subjects to search space")
-            #wordList.extend(list(GetText(wl) for wl in subjList))
-            print("Switching search space to subjects")
-            for thisSubj in subjList:
-                wordList.extend(GetText(thisSubj))
-        elif scope == "subjects":
-            #print("Adding bodies to search space")
-            #wordList.extend(list(GetText(wl) for wl in bodyList))
-            print("Switching search space to bodies")
-            for thisBody in bodyList:
-                wordList.extend(GetText(thisBody))
+                    try:
+                        print("Tuple({tupSize}): {hitCount}/{localMin} \"{mcword}\" ({tscore})"\
+                            .format(tupSize=tupSize, hitCount=hitCount, localMin=localMin, \
+                            mcword=tupCounter.most_common(1)[0][0], tscore=tupCounter.most_common(1)[0][1]))
+                    except:
+                        breakpoint()
+                    wordCounter.update(Counter(el for el in tupCounter.elements() if (tupCounter[el] > 1)))
+                tupSize-=1
 
-        wordCounter.clear()
-        tupSize = maxTupleSize
-        #breakpoint()
+            # after this point, wordCounter should be "clean" and need no additional API hits
+                
+            if len(wordCounter)>0:
+                cleanCounter(wordCounter, service, localMin, max(maxHit, 95), absoluteMin)
+                #walkCounter(wordCounter, absoluteMin, len(threads)//2)
 
-# Just load all messages
-showNTell(None, useraddr)
+            if scope == "snippets":
+                print("Loading " + str(len(threads)) + " messages.")
+                subjList, bodyList = getThreadSubjects(service, 'me', threads)
+                #print("Adding subjects to search space")
+                #wordList.extend(list(GetText(wl) for wl in subjList))
+                print("Switching search space to subjects")
+                for thisSubj in subjList:
+                    wordList.extend(GetText(thisSubj))
+            elif scope == "subjects":
+                #print("Adding bodies to search space")
+                #wordList.extend(list(GetText(wl) for wl in bodyList))
+                print("Switching search space to bodies")
+                for thisBody in bodyList:
+                    wordList.extend(GetText(thisBody))
+
+            wordCounter.clear()
+            tupSize = maxTupleSize
+            #breakpoint()
+
+    # Just load all messages
+    showNTell(None, useraddr)
