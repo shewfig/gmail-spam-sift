@@ -167,7 +167,6 @@ def make_tuples_from_list_of_lists(size, corpus):
 
     
 def showNTell(mChain, emailAddr=None):
-    import webbrowser
     mUrl = "https://mail.google.com/mail{authstr}".format(authstr="/u/0/" if emailAddr is None else "?authuser="+emailAddr)
 
     if mChain is not None:
