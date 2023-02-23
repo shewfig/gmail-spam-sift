@@ -43,6 +43,8 @@ absoluteMin = 5
 tooMany = 50
 justRight = 34
 
+myBrowser = 'chrome'
+
 from lxml import html
 from lxml.html.clean import clean_html
 
@@ -181,7 +183,7 @@ def showNTell(mChain, emailAddr=None):
         mUrl += "#spam"
     
     #print("URL: "+mUrl)
-    webbrowser.open(url = mUrl, autoraise=True)
+    webbrowser.get(myBrowser).open(url = mUrl, autoraise=True)
     exit(0)
 
 def countMessagesWithTuple(mChain, service, user_id='me'):
