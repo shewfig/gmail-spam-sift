@@ -41,6 +41,8 @@ from collections import Counter
 from lxml import html
 from lxml.html.clean import clean_html
 
+import webbrowser
+
 def strip_tags(payload):
     if isinstance(payload, str) and len(payload)>1:
         try:
