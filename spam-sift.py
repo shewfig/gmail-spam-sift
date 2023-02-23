@@ -174,8 +174,8 @@ def showNTell(mChain, emailAddr=None):
     else:
         mUrl += "#spam"
     
-    print("URL: "+mUrl)
-    webbrowser.open(url = mUrl, autoraise=True)
+    #print("URL: "+mUrl)
+    webbrowser.get(myBrowser).open(url = mUrl, autoraise=True)
     exit(0)
 
 def countMessagesWithTuple(mChain, service, user_id='me'):
@@ -264,6 +264,8 @@ if __name__ == '__main__':
     absoluteMin = 5
     tooMany = 50
     justRight = 34
+    
+    myBrowser = 'chrome'
 
     # Setup the Gmail API
     SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
