@@ -177,7 +177,7 @@ def showNTell(mChain, emailAddr=None):
         mUrl += "#spam"
     
     #print("URL: "+mUrl)
-    webbrowser.get(myBrowser).open(url = mUrl, autoraise=True)
+    webbrowser.open(url = mUrl, autoraise=True)
     exit(0)
 
 def countMessagesWithTuple(mChain, service, user_id='me'):
@@ -273,6 +273,17 @@ if __name__ == '__main__':
     SCOPES = [ 'https://www.googleapis.com/auth/gmail.readonly' ]
     #SCOPES = 'https://www.googleapis.com/auth/gmail.metadata'
 
+    # Set preferred browser (if any)
+    # #WARNING this method is not documented, ergo not recommended
+    if myBrowser is not None:
+        webbrowser.register_standard_browsers()
+        if myBrowser in webbrowser._tryorder:
+            webbrowser._os_preferred_browser = myBrowser
+        else:
+            os.environ["BROWSER"] = myBrowser
+        webbrowser._tryorder = None
+
+    # Oauth flaming hoops
     creds = None
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
