@@ -214,24 +214,27 @@ def cleanCounter(tupCounter, service, low, high, lowest):
         progBar(amtDone,msg)
         if v < lowest:
             del tupCounter[k]
-        elif k == str(getUserAddress(service, 'me')).split('@')[0] \
+        elif k in str(getUserAddress(service, 'me')).split('@') \
                 or k == str(getUserAddress(service, 'me')).replace('@', ' '):
+                    '''
                     print("\nKeyword is username({keyword}), skipping"\
                             .format(keyword=k))
+                    #'''
+                    continue
         else:
             realV = countMessagesWithTuple(k, service, 'me')
             thisRare = getTupScore(k)
-            thisLow = (low - thisRare)
+            thisLow = max((low - thisRare),lowest)
             thisHigh = (high + thisRare)
             thisV = realV
             highest = max(realV, highest)
             if realV < 1:
                 del tupCounter[k]
             elif thisLow <= thisV <= thisHigh:
-                print("\n[{hits}] \"{keyword}\"".format(hits=realV, keyword=k))
+                print("\n[{hits} @ {score}z] \"{keyword}\"".format(hits=realV, keyword=k, score=thisRare))
                 showNTell(k, str(getUserAddress(service, 'me')))
             else:
-                #"""
+                """
                 print("\n[{fakeIn}: {low} < {val} < {high}]: {term}"\
                     .format(\
                     low=thisLow, high=thisHigh,\
